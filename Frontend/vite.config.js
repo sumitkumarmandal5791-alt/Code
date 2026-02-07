@@ -7,7 +7,6 @@ export default defineConfig({
 
   define: {
     'process.env.BACKEND_URL': JSON.stringify(process.env.BACKEND_URL),
-    // or more commonly:
     // 'process.env': {}   ← if you want all env vars
   },
 })
