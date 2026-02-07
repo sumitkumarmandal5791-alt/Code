@@ -1,7 +1,7 @@
 require("dotenv").config();
 const axios = require('axios');
 
-// For the FREE tier, use this endpoint
+// For the FREE tier, use this 
 const options = {
     method: 'GET',
     url: 'https://judge0-ce.p.rapidapi.com/submissions/batch',
