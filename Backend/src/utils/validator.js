@@ -11,7 +11,7 @@ const validate = (data) => {
         throw new Error("Invalid emailId")
 
     if (!validator.isStrongPassword(data.password))
-        throw new Error("Invalid Password")
+        throw new Error("Invalid Password come")
 }
 module.exports = {
     validate
