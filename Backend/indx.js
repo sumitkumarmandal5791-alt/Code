@@ -14,6 +14,7 @@ const videoRouter = require("./src/Routes/VideoRoute")
 
 const allowedOrigin = process.env.NODE_ENV === "production" ? process.env.CORS_ORIGIN_PROD : process.env.CORS_ORIGIN_DEV
 
+
 app.use(cors({
     origin: [allowedOrigin, process.env.CLOUD_URL],
     credentials: true,
