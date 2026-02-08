@@ -12,7 +12,7 @@ const cors = require("cors")
 const AI = require("./src/CHAT_GPT/callgemnini")
 const videoRouter = require("./src/Routes/VideoRoute")
 
-const allowedOrigin = process.env.NODE_ENV === "production" ? process.env.CORS_ORIGIN_PROD : process.env.CORS_ORIGIN_DEV
+const allowedOrigin = (process.env.NODE_ENV === "production" ? process.env.CORS_ORIGIN_PROD : process.env.CORS_ORIGIN_DEV).replace(/\/$/, "");
 
 
 app.use(cors({
@@ -21,11 +21,11 @@ app.use(cors({
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"]
 }))
-/
+    /
 
 
 
-app.use(express.json());
+    app.use(express.json());
 app.use(cookieParser());
 
 
