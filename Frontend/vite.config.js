@@ -6,12 +6,8 @@ export default defineConfig({
   plugins: [tailwindcss(), react()],
 
   define: {
-<<<<<<< HEAD
-    'process.env.BACKEND_URL': JSON.stringify(process.env.BACKEND_URL),
-=======
     'process.env.BASE_URL': JSON.stringify(process.env.BASE_URL),
     // or more commonly:
->>>>>>> f6f1ff66a5a56f27e4f83ee154a6d5cbd875513e
     // 'process.env': {}   ← if you want all env vars
   },
 })
