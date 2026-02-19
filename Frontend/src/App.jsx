@@ -29,7 +29,7 @@ function App() {
   return (
     <>
       <Routes>
-        <Route path="/" element={isAuthentication ? <HomePage /> : <Navigate to="/signup" />}></Route>
+        <Route path="/" element={isAuthentication ? <HomePage /> : <Navigate to="/login" />}></Route>
         <Route path="/login" element={isAuthentication ? <Navigate to="/" /> : <Login />}></Route>
         <Route path="/signup" element={isAuthentication ? <Navigate to="/" /> : <Signup />}></Route>
         {/* <Route path="/admin" element={<Adminpage />}></Route>  */}

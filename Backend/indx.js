@@ -1,4 +1,3 @@
-
 require("dotenv").config();
 const express = require("express");
 const { main } = require("./src/config/database")
@@ -21,11 +20,11 @@ app.use(cors({
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"]
 }))
-    /
 
 
 
-    app.use(express.json());
+
+app.use(express.json());
 app.use(cookieParser());
 
 

@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { Link } from 'react-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router';
 import { useEffect } from 'react';
@@ -102,7 +103,15 @@ function Login() {
                         >
                             Sign in
                         </button>
-
+                        <p className="mt-4 text-center text-sm text-gray-400">
+                            New to Leetcode?{" "}
+                            <Link
+                                to="/signup"
+                                className="font-medium text-blue-500 hover:text-blue-400 transition-colors"
+                            >
+                                Sign up
+                            </Link>
+                        </p>
                     </form>
                 </div>
             </div>
