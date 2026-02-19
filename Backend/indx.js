@@ -11,7 +11,7 @@ const cors = require("cors")
 const AI = require("./src/CHAT_GPT/callgemnini")
 const videoRouter = require("./src/Routes/VideoRoute")
 
-const allowedOrigin = (process.env.NODE_ENV === "production" ? process.env.CORS_ORIGIN_PROD : process.env.CORS_ORIGIN_DEV).replace(/\/$/, "");
+const allowedOrigin = (process.env.NODE_ENV === "production" ? process.env.CORS_ORIGIN_PROD : process.env.CORS_ORIGIN_DEV)
 
 
 app.use(cors({
