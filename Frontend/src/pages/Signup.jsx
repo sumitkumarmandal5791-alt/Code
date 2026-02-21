@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useDispatch, useSelector } from 'react-redux'
 import { registerUser } from '../authSlice'
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useEffect } from 'react';
 
 
@@ -136,9 +136,12 @@ function Signup() {
                         {/* Sign in link */}
                         <p className="text-center text-gray-400 text-sm mt-4">
                             Already have an account?{' '}
-                            <a href="./login" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
-                                Sign in
-                            </a>
+                              <Link
+                                to="/login"
+                                className="font-medium text-blue-500 hover:text-blue-400 transition-colors"
+                            >
+                                log in
+                            </Link>
                         </p>
                     </form>
 
