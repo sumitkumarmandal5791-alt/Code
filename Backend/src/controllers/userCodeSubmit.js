@@ -159,7 +159,8 @@ const runCode = async (req, res) => {
 
     }
     catch (error) {
-        console.log(error.message)
+        console.log(error)
+        res.status(400).json({ error: error.message })
     }
 
 }
@@ -168,8 +169,9 @@ const getSubmitCode = async (req, res) => {
     try {
         const userId = req.user._id
         const problemId = req.params.id
-        console.log(userId, problemId);
+
         const submit = await Submission.find({ userId, problemId }).sort({ _id: -1 })
+
         return res.status(200).json(submit)
     }
     catch (error) {

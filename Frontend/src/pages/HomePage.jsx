@@ -18,7 +18,6 @@ function HomePage() {
     const [status, setStatus] = useState('all');
     const [isFetching, setIsFetching] = useState(true);
 
-
     useEffect(() => {
         const fetchData = async () => {
             setIsFetching(true);
@@ -40,8 +39,6 @@ function HomePage() {
         fetchData();
     }, [user]);
 
-    // Derived state for filtering
-
     const solvedIds = new Set(solvedProblems?.map(p => p._id));
 
     const filteredProblems = problems.filter(problem => {
@@ -57,13 +54,30 @@ function HomePage() {
     });
 
     return (
-        <Layout>
+        <Layout className="bg-[#fafaf9] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 transition-colors">
+            <div className="relative overflow-hidden mb-8 p-6 md:p-8 rounded-2xl border border-red-500/10 dark:border-red-500/20 shadow-sm"
+                 style={{ background: 'linear-gradient(135deg, #ffffff 0%, #fef2f2 50%, #f0fdf4 100%)' }}>
+                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
+                      style={{
+                          backgroundImage: 'radial-gradient(rgba(0,0,0,0.2) 1px, transparent 1px)',
+                          backgroundSize: '20px 20px'
+                      }} />
+                <div className="relative z-10">
+                    <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+                        Welcome back, <span className="text-red-600 capitalize">{user?.firstName || 'Developer'}</span>!
+                    </h1>
+                    <p className="mt-2 text-sm text-gray-500 max-w-xl">
+                        Sharpen your coding skills, practice daily challenges, and track your accomplishments on CodeBits.
+                    </p>
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {isFetching ? (
                     <div className="col-span-1 lg:col-span-4 flex justify-center py-20">
                         <div className="flex flex-col items-center justify-center gap-2">
-                            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                            <span className="text-gray-400">Loading problems...</span>
+                            <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+                            <span className="text-gray-500 dark:text-gray-400 text-sm font-medium">Loading problems...</span>
                         </div>
                     </div>
                 ) : (
@@ -71,21 +85,21 @@ function HomePage() {
                         {/* Main Content: Problem List */}
                         <div className="lg:col-span-3 space-y-6">
                             {/* Filters Bar */}
-                            <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-[#2a2a2a] p-4 rounded-xl border border-gray-700">
-                                <div className="relative w-full md:w-64">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-white dark:bg-[#121212] p-4 rounded-xl border border-gray-200/80 dark:border-gray-800 shadow-sm transition-colors">
+                                <div className="relative w-full sm:w-72">
+                                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-600" size={16} />
                                     <input
                                         type="text"
-                                        placeholder="Search questions..."
-                                        className="w-full bg-[#1a1a1a] border border-gray-600 text-white pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:border-blue-500 transition-colors text-sm"
+                                        placeholder="Search problems..."
+                                        className="w-full bg-gray-50 dark:bg-[#181818] border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-gray-100 pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/10 focus:border-red-500 transition-all text-sm"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />
                                 </div>
 
-                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                <div className="flex items-center gap-3 w-full sm:w-auto">
                                     <select
-                                        className="bg-[#1a1a1a] border border-gray-600 text-gray-300 text-sm px-3 py-2 rounded-lg focus:outline-none cursor-pointer hover:border-blue-500 transition-colors w-full md:w-auto"
+                                        className="bg-gray-50 dark:bg-[#181818] border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 text-sm px-3.5 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/10 focus:border-red-500 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#202020] transition-all w-full sm:w-auto"
                                         value={difficulty}
                                         onChange={(e) => setDifficulty(e.target.value)}
                                     >
@@ -96,7 +110,7 @@ function HomePage() {
                                     </select>
 
                                     <select
-                                        className="bg-[#1a1a1a] border border-gray-600 text-gray-300 text-sm px-3 py-2 rounded-lg focus:outline-none cursor-pointer hover:border-blue-500 transition-colors w-full md:w-auto"
+                                        className="bg-gray-50 dark:bg-[#181818] border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 text-sm px-3.5 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/10 focus:border-red-500 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#202020] transition-all w-full sm:w-auto"
                                         value={status}
                                         onChange={(e) => setStatus(e.target.value)}
                                     >
@@ -108,40 +122,40 @@ function HomePage() {
                             </div>
 
                             {/* Problem Table */}
-                            <div className="bg-[#2a2a2a] border border-gray-700 rounded-xl overflow-hidden shadow-2xl">
-                                <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-[#252525] border-b border-gray-700 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                            <div className="bg-white dark:bg-[#121212] border border-gray-200/80 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm transition-colors">
+                                <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50/50 dark:bg-[#181818]/60 border-b border-gray-100 dark:border-gray-850 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     <div className="col-span-1">Status</div>
-                                    <div className="col-span-6">Title</div>
+                                    <div className="col-span-7 sm:col-span-6">Title</div>
                                     <div className="col-span-2">Difficulty</div>
-                                    <div className="col-span-3 text-right">Action</div>
+                                    <div className="col-span-2 sm:col-span-3 text-right">Action</div>
                                 </div>
 
-                                <div className="divide-y divide-gray-700/50">
+                                <div className="divide-y divide-gray-100 dark:divide-gray-850">
                                     {filteredProblems.map((problem) => {
                                         const isSolved = solvedIds.has(problem._id);
                                         return (
                                             <div
                                                 key={problem._id}
-                                                className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-[#323232] transition-colors group"
+                                                className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50/50 dark:hover:bg-[#1c1c1c]/30 transition-colors group"
                                             >
                                                 <div className="col-span-1">
                                                     {isSolved ? (
-                                                        <CheckCircle2 size={20} className="text-green-500" />
+                                                        <CheckCircle2 size={20} className="text-green-600" />
                                                     ) : (
-                                                        <div className="h-5 w-5 rounded-full border border-gray-600 group-hover:border-gray-500"></div>
+                                                        <div className="h-5 w-5 rounded-full border border-gray-300 dark:border-gray-700 group-hover:border-gray-400 dark:group-hover:border-gray-650"></div>
                                                     )}
                                                 </div>
-                                                <div className="col-span-6">
+                                                <div className="col-span-7 sm:col-span-6">
                                                     <Link
                                                         to={`/problem-editor/${problem._id}`}
-                                                        className="text-gray-200 hover:text-blue-400 font-medium transition-colors block text-sm truncate"
+                                                        className="text-gray-900 dark:text-gray-100 hover:text-red-600 dark:hover:text-red-500 font-semibold transition-colors block text-sm truncate"
                                                     >
                                                         {problem.title}
                                                     </Link>
                                                     {problem.tags && (
-                                                        <div className="flex gap-2 mt-1">
+                                                        <div className="flex flex-wrap gap-1.5 mt-1.5">
                                                             {(Array.isArray(problem.tags) ? problem.tags : typeof problem.tags === 'string' ? problem.tags.split(',') : []).slice(0, 3).map(tag => (
-                                                                <span key={tag} className="text-[12px] text-gray-400 bg-[1a1a19] px-1.5 py-0.5 rounded border border-gray-700">
+                                                                <span key={tag} className="text-[11px] text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-[#1a1a1a] px-2 py-0.5 rounded border border-gray-200 dark:border-gray-800 font-medium">
                                                                     {tag.trim()}
                                                                 </span>
                                                             ))}
@@ -153,10 +167,10 @@ function HomePage() {
                                                         {problem.difficulty}
                                                     </Badge>
                                                 </div>
-                                                <div className="col-span-3 flex justify-end">
+                                                <div className="col-span-2 sm:col-span-3 flex justify-end">
                                                     <Link to={`/problem-editor/${problem._id}`}>
-                                                        <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            Solve <ChevronRight size={16} />
+                                                        <Button size="sm" variant="ghost" className="hover:text-red-600 dark:hover:text-red-500 hover:bg-red-50/50 dark:hover:bg-red-500/10 text-gray-700 dark:text-gray-300">
+                                                            Solve <ChevronRight size={14} className="ml-1" />
                                                         </Button>
                                                     </Link>
                                                 </div>
@@ -165,9 +179,9 @@ function HomePage() {
                                     })}
 
                                     {filteredProblems.length === 0 && (
-                                        <div className="p-12 text-center text-gray-500">
-                                            <Filter size={48} className="mx-auto mb-4 opacity-50" />
-                                            <p>No problems found matching your filters.</p>
+                                        <div className="p-12 text-center text-gray-400">
+                                            <Filter size={40} className="mx-auto mb-3 opacity-40 text-gray-500" />
+                                            <p className="text-sm font-medium">No problems found matching your filters.</p>
                                         </div>
                                     )}
                                 </div>
@@ -177,66 +191,22 @@ function HomePage() {
                         {/* Sidebar Widgets */}
                         <div className="lg:col-span-1 space-y-6">
                             {/* Calendar Widget */}
-                            <div className="bg-gradient-to-br from-[#2a2a2a] to-[#202020] border border-gray-700 rounded-xl p-6 shadow-xl">
+                            <div className="bg-white dark:bg-[#121212] border border-gray-200/80 dark:border-gray-800 rounded-xl p-6 shadow-sm relative overflow-hidden transition-colors">
+                                <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-[0.05] pointer-events-none"
+                                     style={{ background: 'radial-gradient(circle, #dc2626 0%, transparent 70%)' }} />
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-bold text-white flex items-center gap-2">
-                                        <Calendar size={18} className="text-blue-500" />
+                                    <h3 className="font-bold text-gray-900 dark:text-gray-150 flex items-center gap-2 text-sm">
+                                        <Calendar size={18} className="text-red-600" />
                                         Daily Challenge
                                     </h3>
                                     <Badge variant="easy">Easy</Badge>
                                 </div>
-                                <p className="text-sm text-gray-400 mb-4">
+                                <p className="text-sm font-semibold text-gray-800 dark:text-gray-205 mb-4">
                                     Build Array from Permutation
                                 </p>
-                                <Button className="w-full">Solve Today</Button>
-                            </div>
-
-                            {/* Progress Widget */}
-                            <div className="bg-[#2a2a2a] border border-gray-700 rounded-xl p-6 shadow-xl">
-                                <h3 className="font-bold text-white mb-4">Your Progress</h3>
-                                <div className="flex flex-col gap-4">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-400">Easy</span>
-                                        <span className="text-white font-medium">
-                                            {solvedProblems.filter(p => p.difficulty === 'easy').length}
-                                            <span className="text-gray-600"> / {problems.filter(p => p.difficulty === 'easy').length}</span>
-                                        </span>
-                                    </div>
-                                    <div className="w-full bg-gray-700 rounded-full h-1.5">
-                                        <div
-                                            className="bg-green-500 h-1.5 rounded-full"
-                                            style={{ width: `${(problems.length > 0) ? (solvedProblems.filter(p => p.difficulty === 'easy').length / problems.filter(p => p.difficulty === 'easy').length) * 100 : 0}%` }}
-                                        ></div>
-                                    </div>
-
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-400">Medium</span>
-                                        <span className="text-white font-medium">
-                                            {solvedProblems.filter(p => p.difficulty === 'medium').length}
-                                            <span className="text-gray-600"> / {problems.filter(p => p.difficulty === 'medium').length}</span>
-                                        </span>
-                                    </div>
-                                    <div className="w-full bg-gray-700 rounded-full h-1.5">
-                                        <div
-                                            className="bg-yellow-500 h-1.5 rounded-full"
-                                            style={{ width: `${(problems.length > 0) ? (solvedProblems.filter(p => p.difficulty === 'medium').length / problems.filter(p => p.difficulty === 'medium').length) * 100 : 0}%` }}
-                                        ></div>
-                                    </div>
-
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-400">Hard</span>
-                                        <span className="text-white font-medium">
-                                            {solvedProblems.filter(p => p.difficulty === 'hard').length}
-                                            <span className="text-gray-600"> / {problems.filter(p => p.difficulty === 'hard').length}</span>
-                                        </span>
-                                    </div>
-                                    <div className="w-full bg-gray-700 rounded-full h-1.5">
-                                        <div
-                                            className="bg-red-500 h-1.5 rounded-full"
-                                            style={{ width: `${(problems.length > 0) ? (solvedProblems.filter(p => p.difficulty === 'hard').length / problems.filter(p => p.difficulty === 'hard').length) * 100 : 0}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
+                                <Button className="w-full bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-500/10">
+                                    Solve Today
+                                </Button>
                             </div>
                         </div>
                     </>
@@ -245,4 +215,5 @@ function HomePage() {
         </Layout>
     );
 }
+
 export default HomePage;

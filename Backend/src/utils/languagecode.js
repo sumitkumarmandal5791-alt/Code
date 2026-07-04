@@ -55,11 +55,11 @@ const submitTokens = async (resultToken) => {
                 url: "https://judge0-ce.p.rapidapi.com/submissions/batch",
                 params: {
                     tokens: resultToken.join(','),
-                    base64_encoded: "true",
+                    base64_encoded: "false",
                     fields: "*",
                 },
                 headers: {
-                    "x-rapidapi-key": "e27fc56142msh68c93958e1cd391p121ce1jsn1db1fefa708a",
+                    "x-rapidapi-key": process.env.JUDGE0_API_KEY,
                     "x-rapidapi-host": "judge0-ce.p.rapidapi.com",
                 },
             };
@@ -70,7 +70,11 @@ const submitTokens = async (resultToken) => {
             const ready = results.every((r) => r.status && r.status.id > 2);
 
             if (ready) {
-                return results;
+                // Normalize: add status_id at top level for controller compatibility
+                return results.map((r) => ({
+                    ...r,
+                    status_id: r.status.id,
+                }));
             }
             await wait(800);
 
@@ -81,8 +85,6 @@ const submitTokens = async (resultToken) => {
             throw new Error('Failed to fetch results from Judge0: ' + (error.response?.data?.error || error.message));
         }
     }
-
-    throw new Error('Timeout waiting for Judge0 results');
 };
 
 module.exports = { getLanguageId, submitTestCase, submitTokens };

@@ -10,6 +10,7 @@ const cookieParser = require('cookie-parser')
 const cors = require("cors")
 const AI = require("./src/CHAT_GPT/callgemnini")
 const videoRouter = require("./src/Routes/VideoRoute")
+const chatRouter = require("./src/Routes/chatRoute")
 
 const allowedOrigin = (process.env.NODE_ENV === "production" ? process.env.CORS_ORIGIN_PROD : process.env.CORS_ORIGIN_DEV)
 
@@ -33,6 +34,7 @@ app.use("/admin", problemRouter)
 app.use("/users", submitCodeRouter)
 app.use("/ai", AI)
 app.use("/video", videoRouter)
+app.use("/chat", chatRouter)
 
 
 

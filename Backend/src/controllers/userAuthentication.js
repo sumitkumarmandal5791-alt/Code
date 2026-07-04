@@ -12,6 +12,7 @@ const Register = async (req, res) => {
         //validate the data
         validate(req.body)
 
+
         //ye email already exist to nahi karta
         const isEmailExist = await User.findOne({ emailId: req.body.emailId })
         if (isEmailExist)
@@ -21,14 +22,17 @@ const Register = async (req, res) => {
         req.body.password = await bcrypt.hash(req.body.password, 10)
 
         req.body.role = 'user'
+
         //regsister the user in data base
         const person = await User.create(req.body)
+        console.log("test")
         const reply = {
             firstName: person.firstName,
             emailId: person.emailId,
             _id: person._id,
             role: person.role
         }
+
 
 
         //user is verified so send him a jwt token sa he can take access of all the data

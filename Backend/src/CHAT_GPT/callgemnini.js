@@ -10,6 +10,7 @@ AI.post("/message/:id", validateToken, async (req, res) => {
 
     try {
         const { msg } = req.body;
+        console.log("mesage" + msg)
         const userId = req.params.id;
         let person = await ai.findOne({ id: userId });
 
@@ -38,7 +39,8 @@ AI.post("/message/:id", validateToken, async (req, res) => {
         res.send(answer)
     }
     catch (error) {
-        res.status(400).send(error.message)
+        console.error("AI Route Error:", error.message);
+        res.status(500).json({ error: error.message })
     }
 })
 

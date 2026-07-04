@@ -15,6 +15,8 @@ import DeleteProblem from './AdminWork/deleteProblem';
 import UpdateProblemById from './AdminWork/updateProblembyId.jsx';
 import AdminCreateVideo from './AdminWork/videocreate.jsx';
 import UploadVideo from "./AdminWork/uploadVideo.jsx"
+import UserDetail from "./pages/userDetail.jsx"
+import ChatPage from "./pages/ChatPage.jsx"
 
 function App() {
 
@@ -38,7 +40,9 @@ function App() {
         <Route path="/admin/update" element={isAuthentication && user?.role === 'admin' ? <UpdateProblem /> : <Navigate to="/" />}></Route>
         <Route path="/admin/update/:id" element={isAuthentication && user?.role === 'admin' ? <UpdateProblemById /> : <Navigate to="/" />}></Route>
         <Route path="/admin/delete" element={isAuthentication && user?.role === 'admin' ? <DeleteProblem /> : <Navigate to="/" />}></Route>
-        <Route path="/problem-editor/:id" element={<ProblemEdititor />}></Route>
+        <Route path="/profile" element={isAuthentication ? <UserDetail /> : <Navigate to="/login" />}></Route>
+        <Route path="/chats" element={isAuthentication ? <ChatPage /> : <Navigate to="/login" />}></Route>
+        <Route path="/problem-editor/:id" element={isAuthentication ? <ProblemEdititor /> : <Navigate to="/login" />}></Route>
         <Route path="/admin/video" element={isAuthentication && user?.role === 'admin' ? <AdminCreateVideo /> : <Navigate to="/" />}></Route>
         <Route path="/admin/uploadvideo/:problemId" element={isAuthentication && user?.role === 'admin' ? <UploadVideo /> : <Navigate to="/" />}></Route>
       </Routes>
