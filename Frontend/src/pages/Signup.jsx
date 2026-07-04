@@ -4,7 +4,7 @@ import { z } from "zod"
 import { useDispatch, useSelector } from 'react-redux'
 import { registerUser } from '../authSlice'
 import { Link, useNavigate } from 'react-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 
 const signupSchema = z.object({
@@ -479,31 +479,26 @@ function Signup() {
                                 </button>
 
                                 {/* Sign in link */}
-                                <p className="text-center text-sm" style={{ color: '#9ca3af' }}>
+                                <p className="text-center text-gray-400 text-sm mt-4">
                                     Already have an account?{' '}
                                     <Link
                                         to="/login"
-                                        className="font-semibold transition-colors duration-200"
-                                        style={{ color: '#dc2626' }}
-                                        onMouseEnter={(e) => e.target.style.color = '#ef4444'}
-                                        onMouseLeave={(e) => e.target.style.color = '#dc2626'}
+                                        className="font-medium text-blue-500 hover:text-blue-400 transition-colors"
                                     >
-                                        Sign in
+                                        log in
                                     </Link>
                                 </p>
                             </form>
+
+                            {/* Bottom decorative text */}
+                            <p className="text-center mt-6 text-xs" style={{ color: '#d1d5db' }}>
+                                Practice. Code. Succeed.
+                            </p>
                         </div>
                     </div>
 
-                    {/* Bottom decorative text */}
-                    <p className="text-center mt-6 text-xs" style={{ color: '#d1d5db' }}>
-                        Practice. Code. Succeed.
-                    </p>
-                </div>
-            </div>
-
-            {/* Keyframe animations */}
-            <style>{`
+                    {/* Keyframe animations */}
+                    <style>{`
                 @keyframes float1 {
                     0%, 100% { transform: translate(0, 0) scale(1); }
                     33% { transform: translate(30px, -30px) scale(1.05); }
@@ -533,8 +528,8 @@ function Signup() {
                     50% { opacity: 0.4; }
                 }
             `}</style>
-        </div>
-    )
+                </div>
+                )
 }
 
-export default Signup
+                export default Signup
