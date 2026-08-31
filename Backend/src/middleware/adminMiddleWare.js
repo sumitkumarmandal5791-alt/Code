@@ -1,5 +1,4 @@
 const jwt = require("jsonwebtoken");
-const redisClient = require("../config/Reddis")
 const { User } = require("../Modles/user")
 
 const validateAdminToken = async (req, res, next) => {
@@ -23,12 +22,6 @@ const validateAdminToken = async (req, res, next) => {
 
         if (!user)
             throw new Error("Unauthorized 6")
-
-        //check in the database of reddis whether this 
-        // token is blacklisted or not
-        const blockListToken = await redisClient.exists(`token:${token}`)
-        if (blockListToken)
-            throw new Error("Unauthorized 3")
 
         req.user = user;
         //token verified ans it is valid user

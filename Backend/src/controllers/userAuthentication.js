@@ -1,4 +1,3 @@
-const redisClient = require("../config/Reddis")
 const { User } = require("../Modles/user")
 const Submission = require("../Modles/submitSchema")
 const { validate } = require("../utils/validator")
@@ -96,17 +95,7 @@ const Login = async (req, res) => {
 
 const Logout = async (req, res) => {
     try {
-        //valide the token ki user logout hona chatah hai
-
-        //Token Add kar dunga Reddis ke blockList me
-        const { token } = req.cookies;
-
-        const payload = jwt.decode(token)
-
-        await redisClient.set(`token:${token}`, "Blocked")
-        await redisClient.expireAt(`token:${token}`, payload.exp)
-
-        //expire the cokkies ans sent to user
+        // expire the cookies and sent to user
         res.cookie("token", null, { maxAge: new Date(Date.now()) });
         res.send("Logout successfully")
     }

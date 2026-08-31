@@ -4,7 +4,6 @@ const { main } = require("./src/config/database")
 const app = express();
 const userAuthRouter = require("./src/Routes/userAuth")
 const problemRouter = require("./src/Routes/problemrotuer")
-const redisClient = require("./src/config/Reddis")
 const submitCodeRouter = require("./src/Routes/submit")
 const cookieParser = require('cookie-parser')
 const cors = require("cors")
@@ -39,7 +38,7 @@ io.use(async (socket, next) => {
             }
             return acc;
         }, {});
-        
+
         const token = cookies.token;
         if (!token) return next(new Error("Authentication error: No token found"));
 
@@ -74,7 +73,7 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-       origin: allowedOrigin,
+    origin: allowedOrigin,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -98,7 +97,7 @@ app.use("/chat", chatRouter)
 
 const InitalizeConnection = async () => {
     try {
-        await Promise.all([main(), redisClient.connect()])
+        await main();
         console.log("CONNECTED TO DATABASE")
         server.listen(process.env.PORT, () => {
             console.log("Server is Listening at Port Number:" + process.env.PORT)
