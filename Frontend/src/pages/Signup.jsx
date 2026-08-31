@@ -4,7 +4,7 @@ import { z } from "zod"
 import { useDispatch, useSelector } from 'react-redux'
 import { registerUser } from '../authSlice'
 import { Link, useNavigate } from 'react-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 
 const signupSchema = z.object({
@@ -497,39 +497,10 @@ function Signup() {
                         </div>
                     </div>
 
-                    {/* Keyframe animations */}
-                    <style>{`
-                @keyframes float1 {
-                    0%, 100% { transform: translate(0, 0) scale(1); }
-                    33% { transform: translate(30px, -30px) scale(1.05); }
-                    66% { transform: translate(-20px, 20px) scale(0.95); }
-                }
-                @keyframes float2 {
-                    0%, 100% { transform: translate(0, 0) scale(1); }
-                    33% { transform: translate(-40px, 20px) scale(1.1); }
-                    66% { transform: translate(30px, -30px) scale(0.9); }
-                }
-                @keyframes float3 {
-                    0%, 100% { transform: translate(0, 0) scale(1); }
-                    50% { transform: translate(50px, -40px) scale(1.15); }
-                }
-                @keyframes fadeInUp {
-                    from {
-                        opacity: 0;
-                        transform: translateY(20px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-                }
-                @keyframes pulse {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.4; }
-                }
-            `}</style>
-                </div>
-                )
-}
 
-                export default Signup
+                </div>
+            </div>
+        </div>
+    )
+}
+export default Signup;

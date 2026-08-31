@@ -74,13 +74,41 @@ const userCodeSubmit = async (req, res) => {
         submitToDb.memory = memory;
         submitToDb.errorMessage = errorMessage;
         await submitToDb.save();
-        //problem id ko user skima ke problemsolved me agar vo nahi hai to;
 
-        if (!req.user.problemSolved.includes(problemId)) {
-            req.user.problemSolved.push(problemId);
+        // Increment submissions count for today
+        const moment = require("moment-timezone");
+        const { calculateUpdatedStreak } = require("../utils/streakHelper");
+        const user = req.user;
+        const tz = user.streak?.timezone || "UTC";
+        const localToday = moment().tz(tz).format("YYYY-MM-DD");
 
+        if (!user.dailySubmissions) {
+            user.dailySubmissions = new Map();
+        }
+        const currentCount = user.dailySubmissions.get(localToday) || 0;
+        user.dailySubmissions.set(localToday, currentCount + 1);
 
-            await req.user.save();
+        // Update streak
+        const streakResult = calculateUpdatedStreak(user, tz);
+        user.streak.currentStreak = streakResult.current;
+        user.streak.longestStreak = streakResult.longest;
+        user.streak.lastActiveDate = streakResult.lastActiveDate;
+
+        // problem id ko user skima ke problemsolved me agar vo nahi hai to;
+        if (status === 'Accepted' && !user.problemSolved.includes(problemId)) {
+            user.problemSolved.push(problemId);
+        }
+
+        await user.save();
+
+        // Emit real-time updates to all connected instances for this user
+        if (req.io) {
+            req.io.to(`user:${user._id}`).emit("activityUpdated", {
+                streak: user.streak,
+                dailySubmissions: Object.fromEntries(user.dailySubmissions),
+                updatedDate: localToday,
+                updatedCount: currentCount + 1
+            });
         }
 
         return res.status(201).send(submitToDb);

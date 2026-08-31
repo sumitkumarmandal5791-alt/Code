@@ -1,13 +1,17 @@
+// Backend/src/CHAT_GPT/Gemini.js
 const { GoogleGenAI } = require("@google/genai");
 
-const ai = new GoogleGenAI({ apiKey: "AIzaSyCEGnomF2PMwH7_weA9zgf48QNdzTDjQTc" });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-
-async function gemini(mess) {
+async function gemini(mess, systemInstruction) {
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: mess,
+            config: {
+                // Pass system context to Gemini
+                systemInstruction: systemInstruction
+            }
         });
 
         return response.text;

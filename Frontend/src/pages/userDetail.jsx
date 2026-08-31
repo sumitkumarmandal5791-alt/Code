@@ -4,6 +4,8 @@ import { logoutUser } from '../authSlice';
 import { useState, useEffect } from 'react';
 import axiosClient from '../utils/axios';
 
+import { ContributionGrid } from '../components/ContributionGrid';
+
 function UserDetail() {
     const { user } = useSelector((state) => state.auth);
     const dispatch = useDispatch();
@@ -37,7 +39,7 @@ function UserDetail() {
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
             </svg>
         ), color: '#16a34a', bg: 'rgba(22,163,74,0.08)' },
-        { label: 'Current Streak', value: '—', icon: (
+        { label: 'Current Streak', value: user?.streak?.currentStreak || 0, icon: (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
             </svg>
@@ -212,6 +214,9 @@ function UserDetail() {
                         </div>
                     ))}
                 </div>
+
+                {/* ═══════════════ CONTRIBUTION GRID ═══════════════ */}
+                <ContributionGrid />
 
                 {/* ═══════════════ DIFFICULTY BREAKDOWN ═══════════════ */}
                 <div className="mt-6 relative rounded-xl p-[1px]"

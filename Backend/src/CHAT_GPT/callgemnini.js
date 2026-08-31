@@ -1,60 +1,65 @@
+// Backend/src/CHAT_GPT/callgemnini.js
 const express = require("express");
 const AI = express.Router();
-const { validateToken } = require("../middleware/userMiddleware")
-const gemini = require("./Gemini")
-const { User } = require("../Modles/user")
-const ai = require("../Modles/schema")
-
+const { validateToken } = require("../middleware/userMiddleware");
+const gemini = require("./Gemini");
+const Problem = require("../Modles/problem");
 
 AI.post("/message/:id", validateToken, async (req, res) => {
-
     try {
-        const { msg } = req.body;
-        console.log("mesage" + msg)
-        const userId = req.params.id;
-        let person = await ai.findOne({ id: userId });
+        const { messages } = req.body;
+        const problemId = req.params.id;
 
-        if (!person) {
-            person = await ai.create({ id: userId, info: [] })
+        // 1. Fetch the problem details from the database
+        const problem = await Problem.findById(problemId);
+        if (!problem) {
+            return res.status(404).json({ error: "Problem not found" });
         }
-        //get current history
-        const history = person.info;
 
-        ///get response from gemini
-        const promptmessage = [
-            ...history,
-            { role: 'user', parts: [{ text: msg }] }
-        ];
+        // 2. Build a rich system instruction containing description & test cases
+        const testCasesString = problem.visibleTestCases.map((tc, index) =>
+            `Test Case ${index + 1}:\nInput: ${tc.input}\nExpected Output: ${tc.output}\nExplanation: ${tc.explanation || "N/A"}`
+        ).join("\n\n");
 
-        const answer = await gemini(promptmessage)
+        const systemInstruction = `
+You are a helpful coding assistant for a platform like LeetCode. 
+The user is currently trying to solve the following problem:
 
-        history.push({ role: 'user', parts: [{ text: msg }] });
-        history.push({ role: 'model', parts: [{ text: answer }] });
+Title: ${problem.title}
+Difficulty: ${problem.difficulty}
+Tags: ${problem.tags.join(", ")}
 
-        await ai.updateOne(
-            { id: userId },
-            { $set: { info: history } }
-        )
+Description:
+${problem.description}
 
-        res.send(answer)
+Available Test Cases:
+${testCasesString}
+
+Instructions:
+1. Guide the user toward the solution by giving hints, correcting syntax, or explaining concepts.
+2. DO NOT just write the complete solution unless the user specifically asks for it. Help them learn.
+3. Be concise and format code snippets in markdown.
+        `.trim();
+
+        // 3. Call gemini passing the history (messages) and the systemInstruction context
+        const answer = await gemini(messages || [], systemInstruction);
+
+        res.send(answer);
     }
     catch (error) {
         console.error("AI Route Error:", error.message);
-        res.status(500).json({ error: error.message })
+        res.status(500).json({ error: error.message });
     }
-})
+});
 
+// Since we no longer save history in DB, return empty array if hit
 AI.get("/message/:id", validateToken, async (req, res) => {
     try {
-        const userId = req.params.id;
-        const person = await ai.findOne({ id: userId });
-        if (!person) {
-            return res.json([])
-        }
-        res.json(person.info)
+        res.json([]);
     } catch (error) {
-        res.status(400).send(error.message)
+        res.status(400).send(error.message);
     }
-})
+});
 
-module.exports = AI
+module.exports = AI;
+

@@ -5,6 +5,8 @@ import { Code2, User, LogOut, Settings, Crown } from 'lucide-react';
 import Button from './ui/Button';
 import { logoutUser } from '../authSlice'; // Assuming action exists
 import { useNavigate } from 'react-router';
+import { StreakWidget } from './StreakWidget';
+
 const Navbar = () => {
     const { user } = useSelector((state) => state.auth);
     const dispatch = useDispatch();
@@ -90,7 +92,8 @@ const Navbar = () => {
                 )}
 
                 {user ? (
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
+                        <StreakWidget />
                         <Link to="/profile" className="flex items-center gap-2">
                             <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-red-500 to-orange-500 flex items-center justify-center text-xs font-bold text-white uppercase shadow-sm">
                                 {user.firstName ? user.firstName[0] : 'U'}

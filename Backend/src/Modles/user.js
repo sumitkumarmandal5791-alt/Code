@@ -47,7 +47,17 @@ const userSchema = new Schema({
             type: Schema.Types.ObjectId,
             ref: "Problem",
         }],
-
+    },
+    streak: {
+        currentStreak: { type: Number, default: 0 },
+        longestStreak: { type: Number, default: 0 },
+        lastActiveDate: { type: String, default: null }, // format: YYYY-MM-DD
+        timezone: { type: String, default: "UTC" }
+    },
+    dailySubmissions: {
+        type: Map,
+        of: Number,
+        default: {}
     }
 }, { timestamps: true })
 

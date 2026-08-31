@@ -19,32 +19,20 @@ function AI({ isDarkMode }) {
     };
 
     useEffect(() => {
-        const fetchHistory = async () => {
-            try {
-                // Fixed colon to slash to match backend: /ai/message/:id
-                const response = await axiosClient.get(`/ai/message/${problemId}`);
-                setMessages(response.data || []);
-            } catch (error) {
-                console.error("Failed to fetch history:", error);
-            }
-        };
-        if (problemId) fetchHistory();
-    }, [problemId]);
-
-    useEffect(() => {
         scrollToBottom();
     }, [messages, isGenerating]);
 
     const onSubmit = async (data) => {
         const userMsg = { role: 'user', parts: [{ text: data.message }] };
-        setMessages(prev => [...prev, userMsg]);
+        const updatedMessages = [...messages, userMsg];
+        setMessages(updatedMessages);
         reset(); // Clear input
         setIsGenerating(true);
 
         try {
-            // Fixed colon to slash to match backend: /ai/message/:id
+            // Send entire updated history array to the backend
             const response = await axiosClient.post(`/ai/message/${problemId}`, {
-                msg: data.message
+                messages: updatedMessages
             });
 
             // Add model response
@@ -56,6 +44,7 @@ function AI({ isDarkMode }) {
             setIsGenerating(false);
         }
     };
+
 
     return (
         <div className="flex flex-col h-[calc(100vh-140px)] w-full relative">
