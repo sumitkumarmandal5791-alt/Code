@@ -4,6 +4,15 @@ const { validate } = require("../utils/validator")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 
+const isProduction = process.env.NODE_ENV === "production";
+
+const cookieOptions = {
+    maxAge: 60 * 60 * 1000,
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+};
+
 
 const Register = async (req, res) => {
     try {
@@ -40,7 +49,7 @@ const Register = async (req, res) => {
         const token = jwt.sign({ _id: person._id, emailId: person.emailId, role: 'user' }, process.env.JWT_SECRET_KEY, { expiresIn: '1h' })
 
         //send along with req.token inside the cookie
-        res.cookie("token", token, { maxAge: 60 * 60 * 1000 })
+        res.cookie("token", token, cookieOptions)
         res.status(201).json({
             user: reply,
             message: "User is registered"
@@ -82,7 +91,7 @@ const Login = async (req, res) => {
             role: person.role
         }
         //send along with req.token inside the cookie
-        res.cookie("token", token, { maxAge: 60 * 60 * 1000 })
+        res.cookie("token", token, cookieOptions)
         res.status(201).json({
             user: reply,
         })
@@ -96,7 +105,7 @@ const Login = async (req, res) => {
 const Logout = async (req, res) => {
     try {
         // expire the cookies and sent to user
-        res.cookie("token", null, { maxAge: new Date(Date.now()) });
+        res.cookie("token", null, { ...cookieOptions, maxAge: 0 });
         res.send("Logout successfully")
     }
     catch (error) {
@@ -129,7 +138,7 @@ const adminRegister = async (req, res) => {
         const token = jwt.sign({ _id: person._id, emailId: person.emailId, role: 'admin' }, process.env.JWT_SECRET_KEY, { expiresIn: '1h' })
 
         //send along with req.token inside the cookie
-        res.cookie("token", token, { maxAge: 60 * 60 * 1000 })
+        res.cookie("token", token, cookieOptions)
         res.status(201).send("Admin registered successfully")
     }
     catch (error) {
