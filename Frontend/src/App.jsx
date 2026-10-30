@@ -1,57 +1,161 @@
-import { useEffect } from 'react'
+import React from "react";
+import { Routes, Route, Navigate } from "react-router";
+import { Toaster } from "react-hot-toast";
+import { AuthProvider } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
+import ErrorBoundary from "./components/ErrorBoundary";
+import CommandPalette from "./components/CommandPalette";
+import ProtectedRoute from "./routes/ProtectedRoute";
+import AuthModal from "./components/auth/AuthModal";
 
-import { Routes, Route, Navigate } from 'react-router'
+// Pages
 import HomePage from "./pages/HomePage";
-import Login from "./pages/Login"
-import Signup from "./pages/Signup"
-import './App.css'
-import { checkAuth } from './authSlice';
-import { useDispatch, useSelector } from 'react-redux';
-import ProblemEdititor from './pages/ProblemEdititor';
-import Adminpage from './pages/adminHomepage';
-import CreateProblem from './AdminWork/createProblem';
-import UpdateProblem from './AdminWork/updateProblem';
-import DeleteProblem from './AdminWork/deleteProblem';
-import UpdateProblemById from './AdminWork/updateProblembyId.jsx';
-import AdminCreateVideo from './AdminWork/videocreate.jsx';
-import UploadVideo from "./AdminWork/uploadVideo.jsx"
-import UserDetail from "./pages/userDetail.jsx"
-import ChatPage from "./pages/ChatPage.jsx"
+import LandingPage from "./pages/LandingPage";
+import ProblemEdititor from "./pages/ProblemEdititor";
+import Adminpage from "./pages/adminHomepage";
+import CreateProblem from "./AdminWork/createProblem";
+import UpdateProblem from "./AdminWork/updateProblem";
+import DeleteProblem from "./AdminWork/deleteProblem";
+import UpdateProblemById from "./AdminWork/updateProblembyId.jsx";
+import AdminCreateVideo from "./AdminWork/videocreate.jsx";
+import UploadVideo from "./AdminWork/uploadVideo.jsx";
+import ProfilePage from "./pages/ProfilePage";
+import ChatPage from "./pages/ChatPage.jsx";
+import NotFoundPage from "./pages/NotFoundPage";
+import "./App.css";
 
 function App() {
-
-  //code
-  const { isAuthentication, user } = useSelector((state) => state.auth)
-  const dispatch = useDispatch()
-
-  // useEffect(() => {
-  //   dispatch(checkAuth())
-  // }, [dispatch]);
-
   return (
-    <>
-      <Routes>
-        <Route path="/" element={isAuthentication ? <HomePage /> : <Navigate to="/login" />}></Route>
-        <Route path="/login" element={isAuthentication ? <Navigate to="/" /> : <Login />}></Route>
-        <Route path="/signup" element={isAuthentication ? <Navigate to="/" /> : <Signup />}></Route>
-        {/* <Route path="/admin" element={<Adminpage />}></Route>  */}
-        <Route path="/admin" element={isAuthentication && user?.role === 'admin' ? <Adminpage /> : <Navigate to="/" />}></Route>
-        <Route path="/admin/create" element={isAuthentication && user?.role === 'admin' ? <CreateProblem /> : <Navigate to="/" />}></Route>
-        <Route path="/admin/update" element={isAuthentication && user?.role === 'admin' ? <UpdateProblem /> : <Navigate to="/" />}></Route>
-        <Route path="/admin/update/:id" element={isAuthentication && user?.role === 'admin' ? <UpdateProblemById /> : <Navigate to="/" />}></Route>
-        <Route path="/admin/delete" element={isAuthentication && user?.role === 'admin' ? <DeleteProblem /> : <Navigate to="/" />}></Route>
-        <Route path="/profile" element={isAuthentication ? <UserDetail /> : <Navigate to="/login" />}></Route>
-        <Route path="/chats" element={isAuthentication ? <ChatPage /> : <Navigate to="/login" />}></Route>
-        <Route path="/problem-editor/:id" element={isAuthentication ? <ProblemEdititor /> : <Navigate to="/login" />}></Route>
-        <Route path="/admin/video" element={isAuthentication && user?.role === 'admin' ? <AdminCreateVideo /> : <Navigate to="/" />}></Route>
-        <Route path="/admin/uploadvideo/:problemId" element={isAuthentication && user?.role === 'admin' ? <UploadVideo /> : <Navigate to="/" />}></Route>
-      </Routes>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <Toaster position="top-right" />
+          <AuthModal />
+          <CommandPalette />
 
+          <Routes>
+            {/* Public landing page with role-based auth modal */}
+            <Route path="/" element={<LandingPage />} />
 
-    </>
+            {/* Redirect standalone login/signup routes back to landing page */}
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/signup" element={<Navigate to="/" replace />} />
 
-  )
+            {/* User Dashboard Routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={["user", "admin"]}>
+                  <HomePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute allowedRoles={["user", "admin"]}>
+                  <HomePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute allowedRoles={["user", "admin"]}>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile/:username"
+              element={
+                <ProtectedRoute allowedRoles={["user", "admin"]}>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/chats"
+              element={
+                <ProtectedRoute allowedRoles={["user", "admin"]}>
+                  <ChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/problem-editor/:id"
+              element={
+                <ProtectedRoute allowedRoles={["user", "admin"]}>
+                  <ProblemEdititor />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Protected Admin Routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <Adminpage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/create"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <CreateProblem />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/update"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <UpdateProblem />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/delete"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <DeleteProblem />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/updateproblembyid/:id"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <UpdateProblemById />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/createvideo"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminCreateVideo />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/uploadvideo/:problemId"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <UploadVideo />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Fallback 404 Route */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
+  );
 }
 
-
-export default App
+export default App;

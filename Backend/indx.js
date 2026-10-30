@@ -27,7 +27,11 @@ const io = new Server(server, {
     }
 });
 
-// Parse cookie manually from socket handshake
+// Register global Socket.IO instance for emitter helper
+const { setSocketIO } = require("./src/sockets/emitter");
+setSocketIO(io);
+
+// Parse cookie or auth token manually from socket handshake
 io.use(async (socket, next) => {
     try {
         const cookieHeader = socket.handshake.headers.cookie || "";
@@ -39,7 +43,7 @@ io.use(async (socket, next) => {
             return acc;
         }, {});
 
-        const token = cookies.token;
+        const token = cookies.token || socket.handshake.auth?.token;
         if (!token) return next(new Error("Authentication error: No token found"));
 
         const jwt = require("jsonwebtoken");
@@ -92,6 +96,15 @@ app.use("/users", submitCodeRouter)
 app.use("/ai", AI)
 app.use("/video", videoRouter)
 app.use("/chat", chatRouter)
+
+// Activity & Heatmap routes
+const activityRouter = require("./src/Routes/activityRoute");
+app.use("/api/activity", activityRouter);
+app.use("/activity", activityRouter);
+
+// Initialize node-cron for daily streak reset at 00:05 in Asia/Kolkata
+const { initializeStreakCron } = require("./src/services/cronService");
+initializeStreakCron();
 
 
 

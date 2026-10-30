@@ -1,122 +1,149 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
-import { useSocket } from "../context/SocketContext";
+import { Flame, Trophy, CheckCircle2, Calendar, Sparkles } from "lucide-react";
 
-export function StreakWidget() {
-  const socket = useSocket();
-  const reduxUser = useSelector((state) => state.auth?.user || state.slicers?.user);
+export function StreakWidget({ summary = {}, loading = false }) {
+  const {
+    currentStreak = 0,
+    longestStreak = 0,
+    totalSolved = 0,
+    totalActiveDays = 0,
+    lastActiveDate = null,
+  } = summary;
 
-  const [streak, setStreak] = useState(0);
-  const [animate, setAnimate] = useState(false);
-  const [particles, setParticles] = useState([]);
+  const [celebrate, setCelebrate] = useState(false);
 
+  // Trigger brief celebration animation when currentStreak changes upwards
   useEffect(() => {
-    if (reduxUser?.streak) {
-      setStreak(reduxUser.streak.currentStreak || 0);
+    if (currentStreak > 0) {
+      setCelebrate(true);
+      const timer = setTimeout(() => setCelebrate(false), 2400);
+      return () => clearTimeout(timer);
     }
-  }, [reduxUser]);
+  }, [currentStreak]);
 
-  // Handle socket real-time events
-  useEffect(() => {
-    if (!socket) return;
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 w-full mb-6">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="h-24 rounded-2xl bg-slate-100 dark:bg-slate-800/50 animate-pulse border border-slate-200/60 dark:border-slate-800"
+          />
+        ))}
+      </div>
+    );
+  }
 
-    const handleActivityUpdate = (data) => {
-      if (data.streak) {
-        const newStreak = data.streak.currentStreak || 0;
-        
-        // Trigger particle animation if the streak increased or a new activity was logged
-        if (newStreak > streak || (data.updatedCount > 0 && newStreak > 0)) {
-          triggerCelebration();
-        }
-        setStreak(newStreak);
-      }
-    };
-
-    socket.on("activityUpdated", handleActivityUpdate);
-
-    return () => {
-      socket.off("activityUpdated", handleActivityUpdate);
-    };
-  }, [socket, streak]);
-
-  const triggerCelebration = () => {
-    setAnimate(true);
-    setTimeout(() => setAnimate(false), 2000);
-
-    // Generate confetti-like particle effects
-    const newParticles = Array.from({ length: 16 }).map((_, i) => ({
-      id: Date.now() + i,
-      left: Math.random() * 80 + 10,
-      size: Math.random() * 6 + 4,
-      delay: Math.random() * 0.5,
-      color: ["#ff3e3e", "#ff8a3d", "#ffd23d", "#4cd964"][Math.floor(Math.random() * 4)],
-      angle: Math.random() * 360,
-      distance: Math.random() * 40 + 20
-    }));
-
-    setParticles(newParticles);
-    setTimeout(() => setParticles([]), 2000);
-  };
-
-  const isActive = streak > 0;
+  const isStreakActive = currentStreak > 0;
 
   return (
-    <div className="relative flex items-center gap-2 bg-[#161b22] border border-[#30363d] px-4 py-2 rounded-full shadow-lg transition-all duration-300 hover:border-orange-500/50 hover:shadow-orange-950/20 hover:shadow-2xl select-none group">
-      
-      {/* Particle Effect Containers */}
-      {particles.map((p) => (
-        <span
-          key={p.id}
-          className="absolute w-2 h-2 rounded-full pointer-events-none animate-ping z-50"
-          style={{
-            left: `${p.left}%`,
-            top: "20%",
-            backgroundColor: p.color,
-            width: `${p.size}px`,
-            height: `${p.size}px`,
-            transform: `translate(${Math.cos(p.angle) * p.distance}px, ${Math.sin(p.angle) * p.distance}px)`,
-            transition: "transform 1.5s cubic-bezier(0.1, 0.8, 0.3, 1), opacity 1.5s ease",
-            opacity: 0
-          }}
-        />
-      ))}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 w-full mb-6">
+      {/* 1. Current Streak Card */}
+      <div
+        className={`relative overflow-hidden p-4 rounded-2xl border transition-all duration-300 ${
+          isStreakActive
+            ? "bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent border-orange-500/30 dark:border-orange-500/40 shadow-sm"
+            : "bg-white dark:bg-[#121212] border-slate-200 dark:border-slate-800 shadow-sm"
+        }`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Current Streak
+          </span>
+          <div
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform ${
+              isStreakActive
+                ? "bg-orange-500 text-white shadow-md shadow-orange-500/30 animate-bounce"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-400"
+            }`}
+          >
+            <Flame size={20} className={isStreakActive ? "fill-white" : ""} />
+          </div>
+        </div>
 
-      {/* Glowing animated flame */}
-      <div className="relative flex items-center justify-center">
-        {isActive && (
-          <span className="absolute w-8 h-8 rounded-full bg-orange-600/30 blur-md animate-pulse" />
+        <div className="flex items-baseline gap-1.5">
+          <span
+            className={`text-2xl sm:text-3xl font-black tracking-tight transition-transform duration-300 ${
+              celebrate ? "scale-110 text-orange-600 dark:text-orange-400" : "text-slate-900 dark:text-white"
+            }`}
+          >
+            {currentStreak}
+          </span>
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+            {currentStreak === 1 ? "day" : "days"}
+          </span>
+        </div>
+
+        {isStreakActive && (
+          <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-orange-600 dark:text-orange-400">
+            <Sparkles size={11} />
+            <span>Streak burning strong!</span>
+          </div>
         )}
-        
-        <svg
-          className={`w-6 h-6 transition-all duration-500 ${
-            isActive 
-              ? "text-orange-500 fill-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.6)] animate-bounce" 
-              : "text-gray-500 fill-gray-500 opacity-60"
-          } ${animate ? "scale-150 rotate-12" : ""}`}
-          viewBox="0 0 24 24"
-        >
-          <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 0 1-2.827 0l-4.244-4.243a8 8 0 1 1 11.314 0zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-        </svg>
       </div>
 
-      {/* Streak Count Text */}
-      <div className="flex flex-col">
-        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider leading-none">Streak</span>
-        <span className={`text-base font-black leading-none mt-0.5 transition-colors duration-300 ${
-          isActive ? "text-orange-500" : "text-gray-400"
-        }`}>
-          {streak} {streak === 1 ? "day" : "days"}
+      {/* 2. Longest Streak Card */}
+      <div className="p-4 rounded-2xl bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Longest Streak
+          </span>
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <Trophy size={18} />
+          </div>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            {longestStreak}
+          </span>
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+            {longestStreak === 1 ? "day" : "days"}
+          </span>
+        </div>
+        <span className="text-[11px] text-slate-400 block mt-1">Personal all-time best</span>
+      </div>
+
+      {/* 3. Total Solved Card */}
+      <div className="p-4 rounded-2xl bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Total Solved
+          </span>
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <CheckCircle2 size={18} />
+          </div>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            {totalSolved}
+          </span>
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">problems</span>
+        </div>
+        <span className="text-[11px] text-slate-400 block mt-1">First-time solves only</span>
+      </div>
+
+      {/* 4. Active Days Card */}
+      <div className="p-4 rounded-2xl bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Active Days
+          </span>
+          <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+            <Calendar size={18} />
+          </div>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            {totalActiveDays}
+          </span>
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">days</span>
+        </div>
+        <span className="text-[11px] text-slate-400 block mt-1">
+          {lastActiveDate ? `Last: ${lastActiveDate}` : "Start coding today!"}
         </span>
-      </div>
-
-      {/* Hover Information Box */}
-      <div className="absolute top-full mt-2 right-0 hidden group-hover:block bg-[#21262d] text-xs text-gray-200 px-3 py-2 rounded-lg border border-[#30363d] shadow-2xl whitespace-nowrap z-50">
-        {isActive ? (
-          <p className="font-semibold text-orange-400">🔥 Your streak is active! Keep it up!</p>
-        ) : (
-          <p>Solve a problem today to ignite your streak!</p>
-        )}
       </div>
     </div>
   );
 }
+
+export default StreakWidget;

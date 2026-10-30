@@ -1,673 +1,1155 @@
-import { useRef, useState, useEffect } from 'react';
-import { useParams } from 'react-router';
-import Editor from '@monaco-editor/react';
-import axiosClinet from "../utils/axios";
-import { Code2, Play, Send, RotateCcw, CheckCircle2, AlertCircle, Clock, Database, Terminal } from "lucide-react";
+import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useParams, Link, useNavigate } from "react-router";
+import Editor from "@monaco-editor/react";
+import axiosClient from "../utils/axios";
+import {
+    Code2,
+    Play,
+    Send,
+    RotateCcw,
+    CheckCircle2,
+    AlertCircle,
+    Clock,
+    Database,
+    Terminal,
+    Maximize2,
+    Minimize2,
+    ChevronLeft,
+    ChevronRight,
+    PlayCircle,
+    PauseCircle,
+    Eye,
+    EyeOff,
+    Keyboard,
+    Copy,
+    ArrowDownToLine,
+    Check,
+    FileCode,
+    Sparkles,
+    BookOpen,
+    History,
+    X,
+    Plus,
+} from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import toast from 'react-hot-toast';
-import AI from './AI';
-import ReactMarkdown from 'react-markdown';
+import toast from "react-hot-toast";
+import ReactMarkdown from "react-markdown";
+import AI from "./AI";
+import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
+import { triggerConfetti } from "../lib/confetti";
+import { useTheme } from "../context/ThemeContext";
 
-function ProblemEditor() {
-    const params = useParams();
-    const problemId = params.id;
+const LANGUAGES = [
+    { id: "cpp", name: "C++" },
+    { id: "java", name: "Java" },
+    { id: "javascript", name: "JavaScript" },
+];
+
+export function ProblemEditor() {
+    const { id: problemId } = useParams();
+    const navigate = useNavigate();
+    const { isDark } = useTheme();
 
     // Problem State
     const [problem, setProblem] = useState(null);
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
+    const [title, setTitle] = useState("");
+    const [description, setDescription] = useState("");
     const [visibleTestCases, setVisibleTestCases] = useState([]);
-    const [tags, setTags] = useState('');
-    const [difficulty, setDifficulty] = useState('');
-    const [submitCode, setSubmitCode] = useState([]);
+    const [tags, setTags] = useState([]);
+    const [difficulty, setDifficulty] = useState("easy");
     const [hiddenTestCases, setHiddenTestCases] = useState([]);
+    const [allProblemIds, setAllProblemIds] = useState([]);
 
-    // Editor State
-    const [code, setCode] = useState('');
-    const [language, setLanguage] = useState('cpp');
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        return localStorage.getItem('theme') === 'dark' || document.documentElement.classList.contains('dark');
+    // Workspace & Editor State
+    const [language, setLanguage] = useState(() => {
+        return localStorage.getItem(`codebits_lang_${problemId}`) || "cpp";
     });
+    const [code, setCode] = useState("");
+    const [fontSize, setFontSize] = useState(13);
+    const [tabSize, setTabSize] = useState(4);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
 
-    useEffect(() => {
-        if (isDarkMode) {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
-        }
-    }, [isDarkMode]);
-    const [activeTab, setActiveTab] = useState('description');
-    const [referenceSolution, setReferenceSolution] = useState(null);
+    // Navigation & Layout State
+    const [activeLeftTab, setActiveLeftTab] = useState("description"); // description | solutions | submissions | ai
+    const [mobileTab, setMobileTab] = useState("description"); // description | code | console
+    const [activeConsoleTab, setActiveConsoleTab] = useState("testcase"); // testcase | result
+    const [selectedCaseIndex, setSelectedCaseIndex] = useState(0);
+    const [customTestCases, setCustomTestCases] = useState([]);
 
-    // Execution State
+    // Execution & Submissions State
     const [isRunning, setIsRunning] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [consoleOutput, setConsoleOutput] = useState(null);
     const [submissionResult, setSubmissionResult] = useState(null);
     const [submissionsHistory, setSubmissionsHistory] = useState([]);
+    const [inspectingSubmission, setInspectingSubmission] = useState(null);
+    const [copiedCode, setCopiedCode] = useState(false);
+
+    // Practice Timer State
+    const [timerSeconds, setTimerSeconds] = useState(0);
+    const [isTimerRunning, setIsTimerRunning] = useState(true);
+    const [isTimerVisible, setIsTimerVisible] = useState(true);
+    const [showShortcutHelp, setShowShortcutHelp] = useState(false);
 
     const editorRef = useRef(null);
     const consolePanelRef = useRef(null);
 
-    const languages = [
-        { id: 'javascript', name: 'JavaScript' },
-        { id: 'java', name: 'Java' },
-        { id: 'cpp', name: 'C++' }
-    ];
+    // Timer effect
+    useEffect(() => {
+        let interval;
+        if (isTimerRunning) {
+            interval = setInterval(() => setTimerSeconds((s) => s + 1), 1000);
+        }
+        return () => clearInterval(interval);
+    }, [isTimerRunning]);
 
+    const formatTimer = (totalSeconds) => {
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    };
+
+    // Auto-save Code to LocalStorage
+    const autoSaveKey = `codebits_code_${problemId}_${language}`;
+
+    useEffect(() => {
+        if (!code) return;
+        const timeout = setTimeout(() => {
+            localStorage.setItem(autoSaveKey, code);
+            localStorage.setItem(`codebits_lang_${problemId}`, language);
+        }, 500);
+        return () => clearTimeout(timeout);
+    }, [code, autoSaveKey, problemId, language]);
+
+    // Unsaved changes warning
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (isDirty || isRunning || isSubmitting) {
+                e.preventDefault();
+                e.returnValue = "";
+            }
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, [isDirty, isRunning, isSubmitting]);
+
+    // Fetch Problem Details & Catalog list for Prev/Next
     useEffect(() => {
         const fetchProblem = async () => {
             try {
-                const { data } = await axiosClinet.get(`admin/ProblemBy/${problemId}`);
-                setProblem(data);
-                setTitle(data?.title);
-                setDescription(data?.description);
-                setVisibleTestCases(data?.visibleTestCases || []);
-                setTags(data?.tags);
-                setDifficulty(data?.difficulty);
-                setHiddenTestCases(data?.hiddenTestCases || []);
+                const [probRes, allRes] = await Promise.allSettled([
+                    axiosClient.get(`admin/ProblemBy/${problemId}`),
+                    axiosClient.get("admin/getAllProblem"),
+                ]);
 
-                // Initialize code with starter code for default language
-                const starter = data?.startCode?.find(sc => sc.language.toLowerCase() === language);
-                if (starter) {
-                    setCode(starter.initialCode);
+                if (probRes.status === "fulfilled") {
+                    const data = probRes.value.data;
+                    setProblem(data);
+                    setTitle(data?.title || "");
+                    setDescription(data?.description || "");
+                    const initialCases = data?.visibleTestCases || [];
+                    setVisibleTestCases(initialCases);
+                    setCustomTestCases(initialCases.map((c) => ({ ...c })));
+                    setTags(
+                        Array.isArray(data?.tags)
+                            ? data.tags
+                            : typeof data?.tags === "string"
+                            ? data.tags.split(",")
+                            : []
+                    );
+                    setDifficulty(data?.difficulty || "easy");
+                    setHiddenTestCases(data?.hiddenTestCases || []);
+
+                    // Check saved code first, otherwise fall back to starter code
+                    const savedCode = localStorage.getItem(`codebits_code_${problemId}_${language}`);
+                    if (savedCode) {
+                        setCode(savedCode);
+                    } else {
+                        const starter = data?.startCode?.find(
+                            (sc) => sc.language.toLowerCase() === language
+                        );
+                        setCode(starter?.initialCode || "// Write your solution here\n");
+                    }
                 }
-            } catch (error) {
-                console.error("Error fetching problem:", error);
+
+                if (allRes.status === "fulfilled" && Array.isArray(allRes.value.data)) {
+                    setAllProblemIds(allRes.value.data.map((p) => p._id));
+                }
+            } catch (err) {
+                console.error("Fetch problem error:", err);
                 toast.error("Failed to load problem details");
             }
         };
+
         if (problemId) fetchProblem();
     }, [problemId]);
 
-    // Update code when language changes
-    useEffect(() => {
-        if (problem?.startCode) {
-            const starter = problem.startCode.find(sc => sc.language.toLowerCase() === language);
-            if (starter) {
-                setCode(starter.initialCode);
-            } else {
-                setCode('// No starter code available for this language');
-            }
+    // When language changes, restore language-specific saved or starter code
+    const handleLanguageChange = (newLang) => {
+        setLanguage(newLang);
+        const saved = localStorage.getItem(`codebits_code_${problemId}_${newLang}`);
+        if (saved) {
+            setCode(saved);
+        } else {
+            const starter = problem?.startCode?.find(
+                (sc) => sc.language.toLowerCase() === newLang
+            );
+            setCode(starter?.initialCode || "// Write your solution here\n");
         }
-    }, [language, problem]);
-
-    const handleEditorDidMount = (editor, monaco) => {
-        editorRef.current = editor;
     };
 
+    // Prev / Next Navigation
+    const currentProblemIndex = allProblemIds.indexOf(problemId);
+    const prevProblemId = currentProblemIndex > 0 ? allProblemIds[currentProblemIndex - 1] : null;
+    const nextProblemId =
+        currentProblemIndex >= 0 && currentProblemIndex < allProblemIds.length - 1
+            ? allProblemIds[currentProblemIndex + 1]
+            : null;
+
+    // Reset code to starter template
+    const handleResetCode = () => {
+        if (window.confirm("Reset editor to starter template? Your current edits for this language will be replaced.")) {
+            const starter = problem?.startCode?.find(
+                (sc) => sc.language.toLowerCase() === language
+            );
+            const defaultCode = starter?.initialCode || "// Write your solution here\n";
+            setCode(defaultCode);
+            localStorage.removeItem(autoSaveKey);
+            setIsDirty(false);
+            toast.success("Code reset to starter template");
+        }
+    };
+
+    // Fetch past submission history
+    const fetchSubmissions = useCallback(async () => {
+        try {
+            const { data } = await axiosClient.get(`/users/getsubmit/${problemId}`);
+            setSubmissionsHistory(Array.isArray(data) ? data : []);
+        } catch (err) {
+            console.error("Submissions error:", err);
+        }
+    }, [problemId]);
+
+    useEffect(() => {
+        if (problemId) fetchSubmissions();
+    }, [problemId, fetchSubmissions]);
+
+    // Run Code against visible test cases
     const handleRunCode = async () => {
+        if (isRunning || isSubmitting) return;
         setIsRunning(true);
         setConsoleOutput(null);
-        setActiveTab('console');
+        setActiveConsoleTab("result");
+        setMobileTab("console");
+
         if (consolePanelRef.current) {
-            consolePanelRef.current.resize(50);
+            consolePanelRef.current.resize(45);
         }
 
         try {
-            const { data } = await axiosClinet.post(`/users/runCode/${problemId}`, {
+            const { data } = await axiosClient.post(`/users/runCode/${problemId}`, {
                 code,
-                language
+                language,
             });
 
             setConsoleOutput(data);
-            if (data.status === 'Accepted') {
-                toast.success('Code executed successfully!');
+            if (data.status === "Accepted") {
+                toast.success("Test cases executed successfully!");
             } else {
-                toast.error(`Execution failed: ${data.status}`);
+                toast.error(`Execution: ${data.status}`);
             }
-        } catch (error) {
-            console.error("Run code error:", error);
-            toast.error(error.response?.data || "Failed to run code");
-            setConsoleOutput({ error: error.message });
+        } catch (err) {
+            console.error("Run error:", err);
+            toast.error(err.response?.data?.error || err.message || "Execution failed");
+            setConsoleOutput({ error: err.message, status: "Error" });
         } finally {
             setIsRunning(false);
         }
     };
 
+    // Submit Solution against hidden test cases
     const handleSubmit = async () => {
-        setIsRunning(true);
+        if (isRunning || isSubmitting) return;
+        setIsSubmitting(true);
         setSubmissionResult(null);
+        setActiveLeftTab("submissions");
+        setMobileTab("description");
 
         try {
-            const { data } = await axiosClinet.post(`/users/submit/${problemId}`, {
+            const { data } = await axiosClient.post(`/users/submit/${problemId}`, {
                 code,
-                language
+                language,
             });
 
             setSubmissionResult(data);
-            getSubmitCode(); // Refresh history
-            if (data.status === 'Accepted') {
-                toast.success('Solution Accepted!');
+            fetchSubmissions();
+
+            if (data.status === "Accepted") {
+                triggerConfetti();
+                toast.success("🎉 Solution Accepted!", { duration: 4000 });
             } else {
-                toast.error(`Submission: ${data.status}`);
+                toast.error(`Verdict: ${data.status}`);
             }
-            setActiveTab('submission');
-        } catch (error) {
-            console.error("Submit error:", error);
-            toast.error("Failed to submit solution");
+        } catch (err) {
+            console.error("Submit error:", err);
+            toast.error(err.response?.data || "Failed to submit code");
         } finally {
-            setIsRunning(false);
+            setIsSubmitting(false);
         }
     };
 
+    // Keyboard Shortcuts (Ctrl+Enter = Run, Ctrl+Shift+Enter = Submit)
     useEffect(() => {
-        getSubmitCode();
-    }, []);
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    handleSubmit();
+                } else {
+                    handleRunCode();
+                }
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [code, language, problemId]);
 
-    const getSubmitCode = async () => {
+    // Reference Solution
+    const referenceSolution = useMemo(() => {
+        if (!problem?.referenceSolution) return "No reference solution available for this problem.";
+        const sol = problem.referenceSolution.find(
+            (s) => s.language?.toLowerCase() === language
+        );
+        return sol ? sol.code : "No reference solution available in " + language + ".";
+    }, [problem, language]);
+
+    // Copy past submission code
+    const handleCopyCode = async (codeText) => {
         try {
-            const { data } = await axiosClinet.get(`/users/getsubmit/${problemId}`);
-            setSubmissionsHistory(Array.isArray(data) ? data : []);
-        } catch (error) {
-            console.error("Submit error:", error);
-            toast.error("Failed to fetch past submissions");
+            await navigator.clipboard.writeText(codeText);
+            setCopiedCode(true);
+            toast.success("Code copied to clipboard!");
+            setTimeout(() => setCopiedCode(false), 2000);
+        } catch {
+            toast.error("Failed to copy");
         }
     };
 
-    const getReferenceSolution = () => {
-        if (!problem?.referenceSolution) return "No reference solution available.";
-        const sol = problem.referenceSolution.find(s => s.language.toLowerCase() === language);
-        return sol ? sol.code : "No reference solution for this language.";
+    // Load past submission into editor
+    const handleLoadIntoEditor = (pastCode, pastLang) => {
+        if (pastLang && pastLang !== language) {
+            setLanguage(pastLang);
+        }
+        setCode(pastCode);
+        setIsDirty(true);
+        setInspectingSubmission(null);
+        setMobileTab("code");
+        toast.success("Loaded submission into editor!");
     };
 
-    // Style configs for premium colors
-    // Premium dark mode: Deep obsidian black (#0d0d0d), dark card borders, clean monospace elements.
-    // Premium light mode: Soft warm white (#faf8f6), light warm borders, comfortable text color that doesn't kill the eye.
-    const darkThemeStyles = {
-        bg: 'bg-[#0d0d0d] text-gray-200',
-        headerBg: 'bg-[#121212] border-[#222222]',
-        tabBg: 'bg-[#121212] border-[#222222]',
-        contentBg: 'bg-[#0d0d0d]',
-        cardBg: 'bg-[#151515] border-[#252525]',
-        border: 'border-[#222222]',
-        separator: 'bg-[#222222] hover:bg-red-600',
-        btnRun: 'bg-[#1c1c1e] hover:bg-[#2c2c2e] text-gray-300 border border-[#2c2c2e]',
-        textMuted: 'text-gray-500',
-        divider: 'border-gray-800'
+    // Relative Time Helper
+    const formatRelativeTime = (timestamp) => {
+        const diffMs = Date.now() - new Date(timestamp).getTime();
+        const mins = Math.floor(diffMs / 60000);
+        if (mins < 1) return "Just now";
+        if (mins < 60) return `${mins}m ago`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
     };
-
-    const lightThemeStyles = {
-        bg: 'bg-[#faf9f6] text-[#2c2c2a]',
-        headerBg: 'bg-[#ffffff] border-[#e8e6e0]',
-        tabBg: 'bg-[#ffffff] border-[#e8e6e0]',
-        contentBg: 'bg-[#faf9f6]',
-        cardBg: 'bg-[#ffffff] border-[#e8e6e0]',
-        border: 'border-[#e8e6e0]',
-        separator: 'bg-[#e8e6e0] hover:bg-red-500',
-        btnRun: 'bg-[#f4f2ec] hover:bg-[#e9e6dd] text-[#4c4c4a] border border-[#e3e0d5]',
-        textMuted: 'text-[#8a877e]',
-        divider: 'border-gray-200'
-    };
-
-    const styles = isDarkMode ? darkThemeStyles : lightThemeStyles;
 
     return (
-
-        <div className={`h-screen flex flex-col ${styles.bg}`}>
-            {/* Header */}
-            <div className={`h-14 border-b flex items-center justify-between px-4 ${styles.headerBg}`}>
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <div className="bg-red-500/10 p-1.5 rounded-lg text-red-600">
-                            <Code2 size={20} />
+        <div
+            className={`h-screen flex flex-col overflow-hidden bg-[#faf9f6] dark:bg-[#0c0c0c] text-gray-900 dark:text-gray-100 transition-colors ${
+                isFullscreen ? "fixed inset-0 z-50" : ""
+            }`}
+        >
+            {/* Top Workspace Header Bar */}
+            <header className="h-13 flex-shrink-0 border-b border-gray-200/80 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md px-3 sm:px-5 flex items-center justify-between z-20">
+                {/* Left: Brand + Problem Title + Prev/Next */}
+                <div className="flex items-center gap-3 min-w-0">
+                    <Link
+                        to="/dashboard"
+                        className="flex items-center gap-2 group text-gray-900 dark:text-white"
+                        title="Back to Problems"
+                    >
+                        <div className="w-8 h-8 rounded-xl bg-red-500/10 text-red-600 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                            <Code2 size={18} />
                         </div>
-                        <h1 className="font-bold text-lg hidden md:block tracking-tight text-red-600">CodeBits</h1>
+                    </Link>
+
+                    {/* Prev / Next Buttons */}
+                    <div className="flex items-center gap-1 border-l border-gray-200 dark:border-white/10 pl-3">
+                        <button
+                            disabled={!prevProblemId}
+                            onClick={() => prevProblemId && navigate(`/problem-editor/${prevProblemId}`)}
+                            title="Previous Problem"
+                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 disabled:pointer-events-none hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        <button
+                            disabled={!nextProblemId}
+                            onClick={() => nextProblemId && navigate(`/problem-editor/${nextProblemId}`)}
+                            title="Next Problem"
+                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 disabled:pointer-events-none hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
                     </div>
-                    <div className="h-6 w-px bg-gray-300/40 mx-2"></div>
-                    <h2 className="font-semibold text-sm truncate max-w-[200px] md:max-w-md">{title}</h2>
+
+                    <h1 className="text-xs sm:text-sm font-bold truncate max-w-[160px] sm:max-w-xs md:max-w-md text-gray-900 dark:text-white">
+                        {title || "Loading problem..."}
+                    </h1>
                 </div>
 
-                <div className="flex items-center gap-3">
+                {/* Right: Timer + Run/Submit Group + Controls */}
+                <div className="flex items-center gap-2 sm:gap-3">
+                    {/* Practice Session Timer */}
+                    {isTimerVisible && (
+                        <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gray-100 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 text-xs font-mono font-semibold text-gray-700 dark:text-gray-300">
+                            <Clock size={13} className="text-gray-400" />
+                            <span>{formatTimer(timerSeconds)}</span>
+                            <button
+                                onClick={() => setIsTimerRunning(!isTimerRunning)}
+                                className="p-0.5 hover:text-red-500 text-gray-400"
+                                title={isTimerRunning ? "Pause timer" : "Resume timer"}
+                            >
+                                {isTimerRunning ? <PauseCircle size={13} /> : <PlayCircle size={13} />}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Keyboard Shortcuts Dialog Trigger */}
                     <button
-                        className={`p-2 rounded-lg transition-colors hover:bg-red-500/5`}
-                        onClick={() => setIsDarkMode(!isDarkMode)}
-                        title={isDarkMode ? "Light Mode" : "Dark Mode"}
+                        onClick={() => setShowShortcutHelp(true)}
+                        title="Keyboard Shortcuts"
+                        className="hidden sm:flex p-1.5 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
                     >
-                        {isDarkMode ? '☀️' : '🌙'}
+                        <Keyboard size={15} />
                     </button>
 
-                    <button
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md font-medium transition-all text-xs ${isRunning ? 'opacity-50 cursor-not-allowed' : ''} ${styles.btnRun}`}
+                    {/* Run Button */}
+                    <Button
+                        size="sm"
+                        variant="secondary"
                         onClick={handleRunCode}
-                        disabled={isRunning}
+                        isLoading={isRunning}
+                        disabled={isRunning || isSubmitting}
+                        title="Run code against sample testcases (Ctrl+Enter)"
+                        className="gap-1.5 text-xs font-bold"
                     >
-                        <Play size={14} />
-                        Run
-                    </button>
+                        <Play size={13} className="fill-current" />
+                        <span>Run</span>
+                    </Button>
 
-                    <button
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md font-semibold transition-all text-xs ${isRunning ? 'opacity-50 cursor-not-allowed' : ''} bg-red-600 hover:bg-red-700 text-white shadow-sm`}
+                    {/* Submit Button */}
+                    <Button
+                        size="sm"
+                        variant="primary"
                         onClick={handleSubmit}
-                        disabled={isRunning}
+                        isLoading={isSubmitting}
+                        disabled={isRunning || isSubmitting}
+                        title="Submit code against all testcases (Ctrl+Shift+Enter)"
+                        className="gap-1.5 text-xs font-bold"
                     >
-                        <Send size={14} />
-                        Submit
-                    </button>
+                        <Send size={13} />
+                        <span>Submit</span>
+                    </Button>
                 </div>
+            </header>
+
+            {/* Mobile Tab Switcher (<1024px) */}
+            <div className="flex lg:hidden border-b border-gray-200 dark:border-white/10 bg-white dark:bg-[#121212] px-2">
+                {[
+                    { id: "description", label: "Description" },
+                    { id: "code", label: "Code" },
+                    { id: "console", label: "Output & Console" },
+                ].map((t) => (
+                    <button
+                        key={t.id}
+                        onClick={() => setMobileTab(t.id)}
+                        className={`flex-1 py-2 text-xs font-bold border-b-2 text-center transition-colors ${
+                            mobileTab === t.id
+                                ? "border-red-600 text-red-600"
+                                : "border-transparent text-gray-500 hover:text-gray-700"
+                        }`}
+                    >
+                        {t.label}
+                    </button>
+                ))}
             </div>
 
-            {/* Main Content */}
-            <div className="flex-grow overflow-hidden">
-                <Group orientation="horizontal">
-                    {/* Left Panel: Description / Solutions */}
-                    <Panel defaultSize={40} minSize={30}>
-                        <div className="h-full flex flex-col">
-                            <div className={`flex border-b ${styles.tabBg}`}>
-                                {['description', 'solutions', 'submission', 'editorial', 'Ai'].map((tab) => (
-                                    <button
-                                        key={tab}
-                                        className={`px-4 py-3 font-semibold text-xs transition-all border-b-2 capitalize ${activeTab === tab ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-red-500'}`}
-                                        onClick={() => setActiveTab(tab)}
-                                    >
-                                        {tab === 'Ai' ? 'AI Assistant' : tab}
-                                    </button>
-                                ))}
-                            </div>
+            {/* Main Content: Desktop Resizable Panels OR Mobile Stacked Views */}
+            <main className="flex-1 overflow-hidden relative">
+                <div className="h-full hidden lg:block">
+                    <Group orientation="horizontal" autoSaveId="codebits_workspace_panels">
+                        {/* ══════════ LEFT PANE: Description, Solutions, Submissions, AI ══════════ */}
+                        <Panel defaultSize={42} minSize={25} className="flex flex-col h-full bg-white dark:bg-[#121212]">
+                            {/* Left Pane Navigation Tabs */}
+                            <nav className="flex items-center justify-between border-b border-gray-200/80 dark:border-white/10 px-2 bg-gray-50/50 dark:bg-white/[0.01]">
+                                <div className="flex items-center gap-1">
+                                    {[
+                                        { id: "description", label: "Description", icon: BookOpen },
+                                        { id: "solutions", label: "Solution", icon: FileCode },
+                                        { id: "submissions", label: "Submissions", icon: History },
+                                        { id: "ai", label: "AI Tutor", icon: Sparkles },
+                                    ].map((t) => {
+                                        const Icon = t.icon;
+                                        return (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => setActiveLeftTab(t.id)}
+                                                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                                                    activeLeftTab === t.id
+                                                        ? "border-red-600 text-red-600 dark:text-red-500"
+                                                        : "border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"
+                                                }`}
+                                            >
+                                                <Icon size={14} />
+                                                <span>{t.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </nav>
 
-                            <div className={`flex-grow overflow-y-auto p-5 ${styles.contentBg}`}>
-                                {activeTab === 'description' && (
+                            {/* Left Pane Content Body */}
+                            <div className="flex-1 overflow-y-auto p-5 scrollbar-thin">
+                                {activeLeftTab === "description" && (
                                     <div className="space-y-6">
                                         <div>
-                                            <h1 className="text-2xl font-bold tracking-tight mb-2">{title}</h1>
-                                            <div className="flex flex-wrap gap-2 mb-6">
-                                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider
-                                                    ${difficulty === 'easy' ? 'bg-green-500/10 text-green-600 border border-green-500/20' :
-                                                        difficulty === 'medium' ? 'bg-yellow-500/10 text-yellow-600 border border-yellow-500/20' :
-                                                            'bg-red-500/10 text-red-600 border border-red-500/20'}`}>
-                                                    {difficulty || 'Easy'}
-                                                </span>
-                                                {(Array.isArray(tags) ? tags : typeof tags === 'string' ? tags.split(',') : []).map(tag => (
-                                                    <span key={tag} className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-[#1a1a1a] text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800">
-                                                        {tag.trim()}
+                                            <h2 className="text-xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-2">
+                                                {title}
+                                            </h2>
+                                            <div className="flex flex-wrap items-center gap-2 mb-4">
+                                                <Badge variant={difficulty}>{difficulty}</Badge>
+                                                {tags.map((t) => (
+                                                    <span
+                                                        key={t}
+                                                        className="text-[10px] font-semibold text-gray-500 bg-gray-100 dark:bg-white/[0.04] px-2 py-0.5 rounded-full"
+                                                    >
+                                                        {t.trim()}
                                                     </span>
                                                 ))}
                                             </div>
 
-                                            {/* Separation and Spacing for description components */}
-                                            <div className="prose max-w-none dark:prose-invert">
-                                                <div className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-3">
-                                                    Question Description
-                                                </div>
-                                                <div className="text-sm leading-relaxed prose prose-neutral dark:prose-invert max-w-none">
-                                                    <ReactMarkdown>
-                                                        {(() => {
-                                                            // Split description to prevent Constraints from rendering inside it
-                                                            const parts = description.split(/(?=###?\s*Constraints|Constraints:)/i);
-                                                            return parts[0] || '';
-                                                        })()}
-                                                    </ReactMarkdown>
-                                                </div>
+                                            {/* Markdown Problem Description */}
+                                            <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">
+                                                <ReactMarkdown>{description}</ReactMarkdown>
                                             </div>
                                         </div>
 
-                                        <hr className={styles.divider} />
-
-                                        <div className="space-y-5">
-                                            <div className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-1">
-                                                Examples & Instructions
-                                            </div>
-                                            {visibleTestCases.map((testCase, index) => (
-                                                <div key={index} className={`rounded-xl p-4 border transition-all ${styles.cardBg}`}>
-                                                    <h3 className="font-bold text-xs uppercase tracking-wider text-red-600 mb-3">Example {index + 1}:</h3>
-                                                    <div className="space-y-2.5 text-xs font-mono">
-                                                        <div className="flex gap-2 items-start">
-                                                            <span className={styles.textMuted}>Input:</span>
-                                                            <span className="font-semibold text-gray-800 dark:text-gray-200">{testCase.input}</span>
+                                        {/* Sample Visible Test Cases */}
+                                        {visibleTestCases.length > 0 && (
+                                            <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-white/5">
+                                                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                                                    Examples
+                                                </h3>
+                                                {visibleTestCases.map((tc, idx) => (
+                                                    <div
+                                                        key={idx}
+                                                        className="p-3.5 rounded-xl bg-gray-50 dark:bg-white/[0.02] border border-gray-200/80 dark:border-white/5 space-y-2 text-xs font-mono"
+                                                    >
+                                                        <div className="font-bold text-gray-500 font-sans text-[11px]">
+                                                            Example {idx + 1}
                                                         </div>
-                                                        <div className="flex gap-2 items-start">
-                                                            <span className={styles.textMuted}>Output:</span>
-                                                            <span className="font-semibold text-gray-800 dark:text-gray-200">{testCase.output}</span>
+                                                        <div className="flex gap-2">
+                                                            <span className="text-gray-400 w-16 flex-shrink-0">Input:</span>
+                                                            <span className="text-gray-800 dark:text-gray-200 break-all">{tc.input}</span>
                                                         </div>
-                                                        {testCase.explanation && (
-                                                            <div className="pt-2 border-t border-dashed border-gray-200 dark:border-gray-800 mt-2">
-                                                                <span className={`${styles.textMuted} block mb-1 text-[10px] uppercase font-sans tracking-wide`}>Explanation:</span>
-                                                                <p className="text-gray-700 dark:text-gray-300 font-sans leading-relaxed">{testCase.explanation}</p>
-                                                            </div>
+                                                        <div className="flex gap-2">
+                                                            <span className="text-gray-400 w-16 flex-shrink-0">Output:</span>
+                                                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold break-all">{tc.output}</span>
+                                                        </div>
+                                                        {tc.explanation && (
+                                                            <p className="text-[11px] font-sans text-gray-500 pt-1 border-t border-dashed border-gray-200 dark:border-white/5">
+                                                                <strong className="text-gray-400">Explanation: </strong>
+                                                                {tc.explanation}
+                                                            </p>
                                                         )}
                                                     </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {/* Constraints section moved to the bottom and styled beautifully */}
-                                        {description.match(/(?=###?\s*Constraints|Constraints:)/i) && (
-                                            <>
-                                                <hr className={styles.divider} />
-                                                <div className="space-y-3">
-                                                    <div className="text-sm font-semibold uppercase tracking-wider text-gray-500">
-                                                        Constraints & Limitations
-                                                    </div>
-                                                    <div className={`rounded-xl p-4 border ${styles.cardBg} bg-red-500/[0.01] border-red-500/10`}>
-                                                        <div className="text-xs leading-relaxed prose prose-neutral dark:prose-invert max-w-none">
-                                                            <ReactMarkdown>
-                                                                {(() => {
-                                                                    const match = description.match(/(###?\s*Constraints|Constraints:[\s\S]*)/i);
-                                                                    // Remove the Constraints header text itself if needed, leaving only items
-                                                                    const rawConstraints = match ? match[1] : '';
-                                                                    return rawConstraints.replace(/###?\s*Constraints:?/i, '').trim();
-                                                                })()}
-                                                            </ReactMarkdown>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </>
+                                                ))}
+                                            </div>
                                         )}
                                     </div>
                                 )}
 
-                                {activeTab === 'solutions' && (
-                                    <div className="h-full flex flex-col">
-                                        <h2 className="text-base font-bold mb-4">Reference Solution</h2>
-                                        <div className="flex-grow border rounded-lg overflow-hidden border-gray-200 dark:border-gray-800">
+                                {activeLeftTab === "solutions" && (
+                                    <div className="space-y-4 h-full flex flex-col">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                                                Reference Solution ({language})
+                                            </h3>
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => handleCopyCode(referenceSolution)}
+                                                className="gap-1 text-xs"
+                                            >
+                                                {copiedCode ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                                                <span>{copiedCode ? "Copied" : "Copy"}</span>
+                                            </Button>
+                                        </div>
+                                        <div className="flex-1 rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden min-h-[300px]">
                                             <Editor
                                                 height="100%"
                                                 language={language}
-                                                theme={isDarkMode ? 'vs-dark' : 'light'}
-                                                value={getReferenceSolution()}
+                                                value={referenceSolution}
+                                                theme={isDark ? "vs-dark" : "light"}
                                                 options={{
                                                     readOnly: true,
+                                                    fontSize: 13,
                                                     minimap: { enabled: false },
                                                     scrollBeyondLastLine: false,
-                                                    fontSize: 13,
                                                 }}
                                             />
                                         </div>
                                     </div>
                                 )}
 
-                                {activeTab === 'submission' && (
-                                    <div className="h-full flex flex-col">
-                                        {submissionResult ? (
-                                            /* Single Submission Details View */
-                                            <div className="space-y-6">
-                                                <button
-                                                    onClick={() => setSubmissionResult(null)}
-                                                    className="text-xs text-red-600 hover:text-red-500 font-semibold flex items-center gap-1 mb-2"
-                                                >
-                                                    ← Back to all submissions
-                                                </button>
-
-                                                <div className={`p-4 rounded-xl border ${submissionResult.status === 'Accepted' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        {submissionResult.status === 'Accepted' ? <CheckCircle2 className="text-green-600" /> : <AlertCircle className="text-red-600" />}
-                                                        <h2 className={`text-lg font-bold ${submissionResult.status === 'Accepted' ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {submissionResult.status}
-                                                        </h2>
-                                                    </div>
-
-                                                    {submissionResult.status === 'Accepted' && (
-                                                        <div className="grid grid-cols-2 gap-4 mt-4">
-                                                            <div className={`p-3 rounded-lg border ${styles.cardBg}`}>
-                                                                <div className="text-gray-400 text-xs mb-1 flex items-center gap-1"><Clock size={12} /> Runtime</div>
-                                                                <div className="text-base font-mono font-bold">{Math.round(submissionResult.runtime * 1000) || 0}ms</div>
-                                                            </div>
-                                                            <div className={`p-3 rounded-lg border ${styles.cardBg}`}>
-                                                                <div className="text-gray-400 text-xs mb-1 flex items-center gap-1"><Database size={12} /> Memory</div>
-                                                                <div className="text-base font-mono font-bold">{(submissionResult.memory / 1024).toFixed(2)} MB</div>
-                                                            </div>
-                                                        </div>
+                                {activeLeftTab === "submissions" && (
+                                    <div className="space-y-4">
+                                        {/* Latest Submission Result Banner */}
+                                        {submissionResult && (
+                                            <div
+                                                className={`p-4 rounded-2xl border ${
+                                                    submissionResult.status === "Accepted"
+                                                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                                                        : "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    {submissionResult.status === "Accepted" ? (
+                                                        <CheckCircle2 size={20} />
+                                                    ) : (
+                                                        <AlertCircle size={20} />
                                                     )}
-
-                                                    {submissionResult.errorMessage && (
-                                                        <div className="p-3 rounded-lg mt-4 font-mono text-xs text-red-500 bg-red-500/5 border border-red-500/10 whitespace-pre-wrap">
-                                                            {atob(submissionResult.errorMessage || '')}
-                                                        </div>
-                                                    )}
+                                                    <h3 className="text-base font-black">
+                                                        {submissionResult.status}
+                                                    </h3>
                                                 </div>
 
-                                                <div className="space-y-2">
-                                                    <h3 className="text-sm font-semibold">Test Cases</h3>
-                                                    <div className="flex gap-2 flex-wrap">
-                                                        {Array.from({ length: submissionResult.totalTestCases || 0 }).map((_, i) => (
-                                                            <div key={i} className={`h-8 w-8 rounded flex items-center justify-center text-xs font-bold 
-                                                         ${i < submissionResult.testCasesPassed ? 'bg-green-500/10 text-green-600 border border-green-500/20' : 'bg-red-500/10 text-red-600 border border-red-500/20'}`}>
-                                                                {i + 1}
-                                                            </div>
-                                                        ))}
+                                                <div className="grid grid-cols-2 gap-3 mt-3 text-xs">
+                                                    <div className="p-2.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
+                                                        <span className="text-gray-400 block text-[10px]">Runtime</span>
+                                                        <span className="font-bold text-gray-900 dark:text-white">
+                                                            {Math.round((submissionResult.runtime || 0) * 1000)} ms
+                                                        </span>
                                                     </div>
-                                                    <p className="text-xs text-gray-500 mt-2">
-                                                        Passed {submissionResult.testCasesPassed || 0} of {hiddenTestCases.length || 0} test cases
-                                                    </p>
+                                                    <div className="p-2.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
+                                                        <span className="text-gray-400 block text-[10px]">Memory</span>
+                                                        <span className="font-bold text-gray-900 dark:text-white">
+                                                            {((submissionResult.memory || 0) / 1024).toFixed(2)} MB
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ) : (
-                                            /* Submissions History List View */
-                                            <div className="space-y-4">
-                                                <h2 className="text-base font-bold">Submission History</h2>
-                                                {submissionsHistory.length === 0 ? (
-                                                    <div className="text-center text-gray-400 py-10 text-xs">
-                                                        No Submission yet
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-2">
-                                                        {submissionsHistory.map((sub, idx) => (
-                                                            <div
-                                                                key={sub._id || idx}
-                                                                onClick={() => setSubmissionResult(sub)}
-                                                                className={`p-3.5 rounded-xl border cursor-pointer hover:border-red-500/40 transition-colors flex items-center justify-between ${styles.cardBg}`}
-                                                            >
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={sub.status === 'Accepted' ? 'text-green-600' : 'text-red-600'}>
-                                                                        {sub.status === 'Accepted' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                                                                    </div>
-                                                                    <div>
-                                                                        <div className={`font-semibold text-sm ${sub.status === 'Accepted' ? 'text-green-600' : 'text-red-600'}`}>
-                                                                            {sub.status}
-                                                                        </div>
-                                                                        <div className="text-[10px] text-gray-400 mt-0.5">
-                                                                            {new Date(sub.createdAt || Date.now()).toLocaleString()}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="text-right text-xs text-gray-500">
-                                                                    <div>Language: {sub.language}</div>
-                                                                    {sub.status === 'Accepted' && (
-                                                                        <div>Runtime: {Math.round(sub.runtime * 1000) || 0}ms</div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        ))}
+
+                                                {submissionResult.errorMessage && (
+                                                    <div className="mt-3 p-3 rounded-xl bg-black/10 dark:bg-black/30 font-mono text-xs whitespace-pre-wrap break-words">
+                                                        {submissionResult.errorMessage}
                                                     </div>
                                                 )}
+                                            </div>
+                                        )}
+
+                                        {/* Submissions History Table */}
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                                                Submission History
+                                            </h3>
+                                            <button
+                                                onClick={fetchSubmissions}
+                                                className="text-xs text-red-600 hover:underline cursor-pointer"
+                                            >
+                                                Refresh
+                                            </button>
+                                        </div>
+
+                                        {submissionsHistory.length === 0 ? (
+                                            <div className="p-8 text-center text-xs text-gray-400">
+                                                No submissions made yet for this problem.
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {submissionsHistory.map((sub, idx) => (
+                                                    <div
+                                                        key={sub._id || idx}
+                                                        onClick={() => setInspectingSubmission(sub)}
+                                                        className="p-3 rounded-xl border border-gray-200/80 dark:border-white/5 hover:border-red-500/40 bg-gray-50/50 dark:bg-white/[0.02] flex items-center justify-between cursor-pointer transition-all"
+                                                    >
+                                                        <div className="flex items-center gap-2.5">
+                                                            {sub.status === "Accepted" ? (
+                                                                <CheckCircle2 size={16} className="text-emerald-500" />
+                                                            ) : (
+                                                                <AlertCircle size={16} className="text-rose-500" />
+                                                            )}
+                                                            <div>
+                                                                <div
+                                                                    className={`text-xs font-bold ${
+                                                                        sub.status === "Accepted"
+                                                                            ? "text-emerald-500"
+                                                                            : "text-rose-500"
+                                                                    }`}
+                                                                >
+                                                                    {sub.status}
+                                                                </div>
+                                                                <div className="text-[10px] text-gray-400">
+                                                                    {formatRelativeTime(sub.createdAt)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="text-right text-[11px] text-gray-500">
+                                                            <div className="font-semibold capitalize">{sub.language}</div>
+                                                            {sub.status === "Accepted" && (
+                                                                <div>{Math.round((sub.runtime || 0) * 1000)}ms</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
                                     </div>
                                 )}
 
-                                {activeTab === 'Ai' && (
-                                    <AI isDarkMode={isDarkMode}></AI>
-                                )}
+                                {activeLeftTab === "ai" && <AI isDarkMode={isDark} />}
                             </div>
-                        </div>
-                    </Panel>
+                        </Panel>
 
-                    <Separator className={`w-1 transition-colors ${styles.separator}`} />
+                        {/* Drag Handle Separator */}
+                        <Separator className="w-1.5 bg-gray-200 dark:bg-white/10 hover:bg-red-500 transition-colors cursor-col-resize" />
 
-                    {/* Right Panel: Editor + Console */}
-                    <Panel defaultSize={60}>
-                        <Group orientation="vertical">
-                            <Panel defaultSize={70}>
-                                <div className="h-full flex flex-col">
-                                    <div className={`flex items-center justify-between px-4 py-2 border-b ${styles.headerBg}`}>
-                                        <div className="flex items-center gap-2">
-                                            <Code2 size={16} className="text-red-500" />
-                                            <span className="text-xs font-semibold">Code</span>
-                                        </div>
-                                        <div className="flex items-center gap-4">
+                        {/* ══════════ RIGHT PANE: Monaco Editor + Bottom Console ══════════ */}
+                        <Panel defaultSize={58} minSize={30} className="flex flex-col h-full">
+                            <Group orientation="vertical" autoSaveId="codebits_console_panels">
+                                {/* Top Half: Monaco Code Editor */}
+                                <Panel defaultSize={68} minSize={20} className="flex flex-col bg-white dark:bg-[#141414]">
+                                    {/* Editor Controls Bar */}
+                                    <div className="h-10 flex-shrink-0 flex items-center justify-between px-4 border-b border-gray-200/80 dark:border-white/10 bg-gray-50/70 dark:bg-white/[0.02]">
+                                        <div className="flex items-center gap-3">
+                                            {/* Language Selector */}
                                             <select
-                                                className={`text-xs bg-transparent border-none focus:ring-0 cursor-pointer ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}
                                                 value={language}
-                                                onChange={(e) => setLanguage(e.target.value)}
+                                                onChange={(e) => handleLanguageChange(e.target.value)}
+                                                className="bg-transparent text-xs font-bold text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer"
                                             >
-                                                {languages.map(lang => (
-                                                    <option key={lang.id} value={lang.id} className="dark:bg-[#121212]">{lang.name}</option>
+                                                {LANGUAGES.map((l) => (
+                                                    <option key={l.id} value={l.id} className="dark:bg-[#1a1a1a]">
+                                                        {l.name}
+                                                    </option>
                                                 ))}
                                             </select>
+
+                                            {/* Font Size Selector */}
+                                            <select
+                                                value={fontSize}
+                                                onChange={(e) => setFontSize(Number(e.target.value))}
+                                                className="bg-transparent text-[11px] text-gray-500 border-none focus:outline-none cursor-pointer hidden sm:block"
+                                                title="Font size"
+                                            >
+                                                <option value={12} className="dark:bg-[#1a1a1a]">12px</option>
+                                                <option value={13} className="dark:bg-[#1a1a1a]">13px</option>
+                                                <option value={14} className="dark:bg-[#1a1a1a]">14px</option>
+                                                <option value={16} className="dark:bg-[#1a1a1a]">16px</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {/* Reset to starter code */}
                                             <button
-                                                className="text-gray-400 hover:text-red-500 transition-colors"
-                                                title="Reset to starter code"
-                                                onClick={() => {
-                                                    if (confirm("Reset code to default?")) {
-                                                        const starter = problem?.startCode?.find(sc => sc.language.toLowerCase() === language);
-                                                        if (starter) setCode(starter.initialCode);
-                                                    }
-                                                }}
+                                                onClick={handleResetCode}
+                                                title="Reset code to default"
+                                                className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
                                             >
                                                 <RotateCcw size={13} />
                                             </button>
+
+                                            {/* Fullscreen Toggle */}
+                                            <button
+                                                onClick={() => setIsFullscreen(!isFullscreen)}
+                                                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                                                className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                                            >
+                                                {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex-grow">
+
+                                    {/* Monaco Editor Component */}
+                                    <div className="flex-1 overflow-hidden">
                                         <Editor
                                             height="100%"
                                             language={language}
                                             value={code}
-                                            theme={isDarkMode ? 'vs-dark' : 'light'}
-                                            onChange={(value) => setCode(value || '')}
-                                            onMount={handleEditorDidMount}
+                                            theme={isDark ? "vs-dark" : "light"}
+                                            onChange={(val) => {
+                                                setCode(val || "");
+                                                setIsDirty(true);
+                                            }}
+                                            onMount={(editor) => {
+                                                editorRef.current = editor;
+                                            }}
                                             options={{
+                                                fontSize,
+                                                tabSize,
                                                 minimap: { enabled: false },
-                                                fontSize: 13,
                                                 scrollBeyondLastLine: false,
                                                 automaticLayout: true,
+                                                fontFamily: "'Fira Code', 'Cascadia Code', monospace",
+                                                padding: { top: 12 },
                                             }}
                                         />
                                     </div>
-                                </div>
-                            </Panel>
+                                </Panel>
 
-                            <Separator className={`h-1 transition-colors ${styles.separator}`} />
+                                {/* Console Resizable Separator */}
+                                <Separator className="h-1.5 bg-gray-200 dark:bg-white/10 hover:bg-red-500 transition-colors cursor-row-resize" />
 
-                            <Panel defaultSize={30} minSize={10} collapsible ref={consolePanelRef}>
-                                <div className={`h-full flex flex-col ${styles.contentBg}`}>
-                                    <div className={`flex items-center px-4 py-2 border-b gap-2 ${styles.headerBg}`}>
-                                        <Terminal size={14} className="text-gray-400" />
-                                        <span className="text-xs font-semibold text-gray-500">Console</span>
+                                {/* Bottom Half: Console & Execution Output */}
+                                <Panel defaultSize={32} minSize={15} ref={consolePanelRef} className="flex flex-col bg-white dark:bg-[#101010]">
+                                    {/* Console Tabs */}
+                                    <div className="h-9 flex-shrink-0 flex items-center justify-between px-3 border-b border-gray-200/80 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02]">
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => setActiveConsoleTab("testcase")}
+                                                className={`px-3 py-1.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                                                    activeConsoleTab === "testcase"
+                                                        ? "border-red-600 text-red-600 dark:text-red-500"
+                                                        : "border-transparent text-gray-500 hover:text-gray-800"
+                                                }`}
+                                            >
+                                                Testcase
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveConsoleTab("result")}
+                                                className={`px-3 py-1.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                                                    activeConsoleTab === "result"
+                                                        ? "border-red-600 text-red-600 dark:text-red-500"
+                                                        : "border-transparent text-gray-500 hover:text-gray-800"
+                                                }`}
+                                            >
+                                                Result
+                                            </button>
+                                        </div>
+
+                                        <span className="text-[10px] font-mono text-gray-400">
+                                            {isRunning ? "Running..." : "Console ready"}
+                                        </span>
                                     </div>
-                                    <div className="flex-grow p-4 overflow-y-auto font-mono text-xs">
-                                        {!consoleOutput && !isRunning && (
-                                            <div className="text-gray-400 italic">Run your code to see output here...</div>
-                                        )}
 
-                                        {isRunning && (
-                                            <div className="flex items-center gap-2 text-red-500 font-semibold">
-                                                <span className="loading loading-spinner loading-sm"></span>
-                                                Running code...
+                                    {/* Console Panel Body */}
+                                    <div className="flex-1 overflow-y-auto p-4 scrollbar-thin font-mono text-xs">
+                                        {activeConsoleTab === "testcase" && (
+                                            <div className="space-y-3">
+                                                {/* Case Selector Tabs */}
+                                                <div className="flex items-center gap-2">
+                                                    {customTestCases.map((_, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => setSelectedCaseIndex(idx)}
+                                                            className={`px-3 py-1 text-xs rounded-xl font-semibold border transition-all cursor-pointer ${
+                                                                selectedCaseIndex === idx
+                                                                    ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400"
+                                                                    : "border-gray-200 dark:border-white/10 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5"
+                                                            }`}
+                                                        >
+                                                            Case {idx + 1}
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {/* Selected Case Editable Inputs */}
+                                                {customTestCases[selectedCaseIndex] && (
+                                                    <div className="space-y-2 pt-1">
+                                                        <div>
+                                                            <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
+                                                                Input:
+                                                            </label>
+                                                            <textarea
+                                                                rows={2}
+                                                                value={customTestCases[selectedCaseIndex].input || ""}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    setCustomTestCases((prev) => {
+                                                                        const copy = [...prev];
+                                                                        copy[selectedCaseIndex].input = val;
+                                                                        return copy;
+                                                                    });
+                                                                }}
+                                                                className="w-full text-xs p-2.5 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 focus:outline-none focus:border-red-500 font-mono"
+                                                            />
+                                                        </div>
+
+                                                        {customTestCases[selectedCaseIndex].output && (
+                                                            <div>
+                                                                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
+                                                                    Expected Output:
+                                                                </label>
+                                                                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 text-emerald-600 dark:text-emerald-400 font-bold">
+                                                                    {customTestCases[selectedCaseIndex].output}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
-                                        {consoleOutput && (
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <div className={`flex items-center gap-2 font-bold text-sm ${consoleOutput.status === 'Accepted' ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
-                                                        {consoleOutput.status === 'Accepted' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                                                        {consoleOutput.status}
+                                        {activeConsoleTab === "result" && (
+                                            <div>
+                                                {isRunning ? (
+                                                    <div className="flex items-center gap-2 text-red-500 py-6 justify-center font-sans font-semibold">
+                                                        <span className="loading loading-spinner loading-sm" />
+                                                        <span>Executing your code against test cases...</span>
                                                     </div>
-                                                </div>
-
-                                                {consoleOutput.results && consoleOutput.results.length > 0 ? (
-                                                    <div className="space-y-4 mt-2">
-                                                        {consoleOutput.results.map((res, idx) => {
-                                                            const testCase = visibleTestCases[idx] || {};
-                                                            const isCorrect = res.status_id === 3 || res.status?.id === 3 || res.status === 'Accepted';
-
-                                                            return (
-                                                                <div key={idx} className={`p-4 rounded-xl border transition-all ${styles.cardBg} ${isCorrect ? 'border-green-500/10' : 'border-red-500/10'}`}>
-                                                                    <div className="flex justify-between items-center text-[10px] text-gray-400 mb-3 border-b border-gray-100 dark:border-gray-800 pb-2">
-                                                                        <span className={`font-semibold ${isCorrect ? 'text-green-600' : 'text-red-500'}`}>
-                                                                            Case {idx + 1}: {typeof res.status === 'object' ? res.status.description : (res.status || (isCorrect ? 'Accepted' : 'Failed'))}
-                                                                        </span>
-                                                                        <span>{res.time}s | {res.memory}KB</span>
-                                                                    </div>
-
-                                                                    <div className="space-y-2 text-xs font-mono">
-                                                                        {testCase.input && (
-                                                                            <div className="flex gap-2">
-                                                                                <span className={`${styles.textMuted} w-16 flex-shrink-0`}>Input:</span>
-                                                                                <span className="text-gray-800 dark:text-gray-200">{testCase.input}</span>
-                                                                            </div>
-                                                                        )}
-                                                                        <div className="flex gap-2">
-                                                                            <span className={`${styles.textMuted} w-16 flex-shrink-0`}>Output:</span>
-                                                                            <span className="text-gray-800 dark:text-gray-200 font-semibold">
-                                                                                {(() => {
-                                                                                    const val = res.stdout || '';
-                                                                                    try {
-                                                                                        // If backend sent plain text, return it. If it happens to be base64, attempt decoding.
-                                                                                        if (val && !/^[A-Za-z0-9+/]*={0,2}$/.test(val.trim())) return val;
-                                                                                        return val ? atob(val.trim()) : <span className="italic opacity-50">Empty</span>;
-                                                                                    } catch {
-                                                                                        return val;
-                                                                                    }
-                                                                                })()}
-                                                                            </span>
-                                                                        </div>
-                                                                        {testCase.output && (
-                                                                            <div className="flex gap-2">
-                                                                                <span className={`${styles.textMuted} w-16 flex-shrink-0`}>Expected:</span>
-                                                                                <span className="text-green-600 dark:text-green-500 font-semibold">{testCase.output}</span>
-                                                                            </div>
-                                                                        )}
-
-                                                                        {/* Status-based error box */}
-                                                                        {!isCorrect && (
-                                                                            <div className="mt-2.5 p-2.5 rounded-lg border border-red-500/10 bg-red-500/5 text-red-600 space-y-1">
-                                                                                <div className="font-semibold text-[10px] uppercase tracking-wider flex items-center gap-1">
-                                                                                    <AlertCircle size={10} />
-                                                                                    {(() => {
-                                                                                        const sid = res.status_id || res.status?.id;
-                                                                                        if (sid === 5) return 'Time Limit Exceeded (TLE)';
-                                                                                        if (sid === 6) return 'Compilation Error';
-                                                                                        if (sid >= 7 && sid <= 12) return 'Runtime Error';
-                                                                                        if (sid === 13) return 'Internal Error';
-                                                                                        if (sid === 14) return 'Exec Format Error';
-                                                                                        return 'Wrong Answer';
-                                                                                    })()}
-                                                                                </div>
-                                                                                {(res.stderr || res.compile_output || res.message) && (
-                                                                                    <div className="text-[11px] font-mono whitespace-pre-wrap opacity-90 break-words mt-1">
-                                                                                        {(() => {
-                                                                                            const rawErr = res.stderr || res.compile_output || res.message || '';
-                                                                                            try {
-                                                                                                if (rawErr && !/^[A-Za-z0-9+/]*={0,2}$/.test(rawErr.trim())) return rawErr;
-                                                                                                return atob(rawErr.trim());
-                                                                                            } catch {
-                                                                                                return rawErr;
-                                                                                            }
-                                                                                        })()}
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                ) : consoleOutput.errorMessage ? (
-                                                    <div className="p-3.5 rounded-xl border border-red-500/20 text-red-500 bg-red-500/5 font-semibold text-xs whitespace-pre-wrap">
-                                                        {consoleOutput.errorMessage}
-
+                                                ) : !consoleOutput ? (
+                                                    <div className="text-gray-400 py-8 text-center font-sans italic">
+                                                        Click &quot;Run&quot; or press <kbd className="font-mono bg-gray-100 dark:bg-white/10 px-1 py-0.5 rounded">Ctrl+Enter</kbd> to inspect output.
                                                     </div>
                                                 ) : (
-                                                    <div className="p-3.5 rounded-xl border border-red-500/20 text-red-500 bg-red-500/5 font-semibold text-xs">
-                                                        Compilation / Runtime Failure: Check code structure or syntax.
+                                                    <div className="space-y-4">
+                                                        {/* Overall Status Banner */}
+                                                        <div className="flex items-center justify-between">
+                                                            <div
+                                                                className={`flex items-center gap-1.5 font-bold text-sm ${
+                                                                    consoleOutput.status === "Accepted"
+                                                                        ? "text-emerald-500"
+                                                                        : "text-rose-500"
+                                                                }`}
+                                                            >
+                                                                {consoleOutput.status === "Accepted" ? (
+                                                                    <CheckCircle2 size={16} />
+                                                                ) : (
+                                                                    <AlertCircle size={16} />
+                                                                )}
+                                                                <span>{consoleOutput.status}</span>
+                                                            </div>
+                                                            {consoleOutput.runTime !== undefined && (
+                                                                <span className="text-[11px] text-gray-400">
+                                                                    Runtime: {Math.round(consoleOutput.runTime * 1000)}ms
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Individual Test Cases Results */}
+                                                        {consoleOutput.results && (
+                                                            <div className="space-y-2.5">
+                                                                {consoleOutput.results.map((res, idx) => {
+                                                                    const isCaseAccepted =
+                                                                        res.status_id === 3 || res.status === "Accepted";
+                                                                    return (
+                                                                        <div
+                                                                            key={idx}
+                                                                            className={`p-3 rounded-xl border ${
+                                                                                isCaseAccepted
+                                                                                    ? "border-emerald-500/20 bg-emerald-500/[0.02]"
+                                                                                    : "border-rose-500/20 bg-rose-500/[0.02]"
+                                                                            }`}
+                                                                        >
+                                                                            <div className="flex justify-between text-[11px] mb-1.5">
+                                                                                <span
+                                                                                    className={`font-bold ${
+                                                                                        isCaseAccepted
+                                                                                            ? "text-emerald-500"
+                                                                                            : "text-rose-500"
+                                                                                    }`}
+                                                                                >
+                                                                                    Case {idx + 1}: {isCaseAccepted ? "Passed" : "Wrong Output"}
+                                                                                </span>
+                                                                                <span className="text-gray-400">{res.time}s</span>
+                                                                            </div>
+                                                                            <div className="text-gray-800 dark:text-gray-200">
+                                                                                <strong className="text-gray-400">Stdout: </strong>
+                                                                                {res.stdout || "<no output>"}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+
+                                                        {consoleOutput.errorMessage && (
+                                                            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 whitespace-pre-wrap">
+                                                                {consoleOutput.errorMessage}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            </Panel>
-                        </Group>
-                    </Panel>
-                </Group>
-            </div>
+                                </Panel>
+                            </Group>
+                        </Panel>
+                    </Group>
+                </div>
+
+                {/* Mobile View: Render only active tab on small screens */}
+                <div className="h-full block lg:hidden p-4 overflow-y-auto">
+                    {mobileTab === "description" && (
+                        <div className="space-y-4">
+                            <h2 className="text-lg font-bold">{title}</h2>
+                            <div className="flex gap-2">
+                                <Badge variant={difficulty}>{difficulty}</Badge>
+                            </div>
+                            <div className="prose prose-sm dark:prose-invert">
+                                <ReactMarkdown>{description}</ReactMarkdown>
+                            </div>
+                        </div>
+                    )}
+
+                    {mobileTab === "code" && (
+                        <div className="h-[500px] border border-gray-200 dark:border-white/10 rounded-2xl overflow-hidden">
+                            <Editor
+                                height="100%"
+                                language={language}
+                                value={code}
+                                theme={isDark ? "vs-dark" : "light"}
+                                onChange={(val) => setCode(val || "")}
+                                options={{ fontSize: 13, minimap: { enabled: false } }}
+                            />
+                        </div>
+                    )}
+
+                    {mobileTab === "console" && (
+                        <div className="space-y-3 font-mono text-xs">
+                            <h3 className="font-bold">Output &amp; Verdicts</h3>
+                            {consoleOutput ? (
+                                <pre className="p-3 bg-gray-100 dark:bg-white/5 rounded-xl overflow-x-auto">
+                                    {JSON.stringify(consoleOutput, null, 2)}
+                                </pre>
+                            ) : (
+                                <p className="text-gray-400">Click &quot;Run&quot; above to execute code.</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </main>
+
+            {/* Inspect Past Submission Code Modal */}
+            {inspectingSubmission && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in"
+                    onClick={() => setInspectingSubmission(null)}
+                >
+                    <div
+                        className="w-full max-w-2xl bg-white dark:bg-[#151515] rounded-3xl border border-gray-200 dark:border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-white/10">
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <span>Submission Code</span>
+                                    <Badge variant={inspectingSubmission.status === "Accepted" ? "easy" : "hard"}>
+                                        {inspectingSubmission.status}
+                                    </Badge>
+                                </h3>
+                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                    Submitted {new Date(inspectingSubmission.createdAt).toLocaleString()} in {inspectingSubmission.language}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setInspectingSubmission(null)}
+                                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 p-4 overflow-hidden min-h-[300px]">
+                            <Editor
+                                height="100%"
+                                language={inspectingSubmission.language}
+                                value={inspectingSubmission.code}
+                                theme={isDark ? "vs-dark" : "light"}
+                                options={{
+                                    readOnly: true,
+                                    fontSize: 13,
+                                    minimap: { enabled: false },
+                                }}
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-white/10">
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleCopyCode(inspectingSubmission.code)}
+                                className="gap-1.5"
+                            >
+                                <Copy size={13} />
+                                <span>Copy Code</span>
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() =>
+                                    handleLoadIntoEditor(
+                                        inspectingSubmission.code,
+                                        inspectingSubmission.language
+                                    )
+                                }
+                                className="gap-1.5"
+                            >
+                                <ArrowDownToLine size={13} />
+                                <span>Load into Editor</span>
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Keyboard Shortcuts Dialog */}
+            {showShortcutHelp && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in"
+                    onClick={() => setShowShortcutHelp(false)}
+                >
+                    <div
+                        className="w-full max-w-sm bg-white dark:bg-[#151515] rounded-3xl border border-gray-200 dark:border-white/10 p-5 shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold flex items-center gap-2">
+                                <Keyboard size={16} className="text-red-500" />
+                                <span>Keyboard Shortcuts</span>
+                            </h3>
+                            <button
+                                onClick={() => setShowShortcutHelp(false)}
+                                className="p-1 text-gray-400 hover:text-gray-600"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3 text-xs">
+                            <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03]">
+                                <span className="text-gray-600 dark:text-gray-300">Run Code</span>
+                                <kbd className="px-2 py-1 rounded bg-gray-200 dark:bg-white/10 font-mono font-bold">
+                                    Ctrl + Enter
+                                </kbd>
+                            </div>
+                            <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03]">
+                                <span className="text-gray-600 dark:text-gray-300">Submit Code</span>
+                                <kbd className="px-2 py-1 rounded bg-gray-200 dark:bg-white/10 font-mono font-bold">
+                                    Ctrl + Shift + Enter
+                                </kbd>
+                            </div>
+                            <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03]">
+                                <span className="text-gray-600 dark:text-gray-300">Fullscreen Toggle</span>
+                                <kbd className="px-2 py-1 rounded bg-gray-200 dark:bg-white/10 font-mono font-bold">
+                                    F11
+                                </kbd>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-
-
     );
 }
 
