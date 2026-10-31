@@ -37,6 +37,8 @@ import ReactMarkdown from "react-markdown";
 import AI from "./AI";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
+import { VerdictDisplay } from "../components/VerdictDisplay";
+import { VERDICTS, VERDICT_CONFIG } from "../utils/verdicts";
 import { triggerConfetti } from "../lib/confetti";
 import { useTheme } from "../context/ThemeContext";
 
@@ -94,7 +96,51 @@ export function ProblemEditor() {
     const [showShortcutHelp, setShowShortcutHelp] = useState(false);
 
     const editorRef = useRef(null);
+    const monacoRef = useRef(null);
     const consolePanelRef = useRef(null);
+
+    // Update Monaco editor error markers and gutter squiggles
+    const updateEditorMarkers = useCallback((errorLine, errorMessage) => {
+        if (!editorRef.current || !monacoRef.current) return;
+        const model = editorRef.current.getModel();
+        if (!model) return;
+
+        if (errorLine && Number(errorLine) > 0) {
+            const line = Number(errorLine);
+            const maxCol = model.getLineMaxColumn(line) || 100;
+            monacoRef.current.editor.setModelMarkers(model, "judge", [
+                {
+                    startLineNumber: line,
+                    startColumn: 1,
+                    endLineNumber: line,
+                    endColumn: maxCol,
+                    message: errorMessage || "Compilation/Runtime Error",
+                    severity: monacoRef.current.MarkerSeverity.Error,
+                },
+            ]);
+            editorRef.current.revealLineInCenter(line);
+        } else {
+            monacoRef.current.editor.setModelMarkers(model, "judge", []);
+        }
+    }, []);
+
+    // Clear Monaco editor markers
+    const clearEditorMarkers = useCallback(() => {
+        if (!editorRef.current || !monacoRef.current) return;
+        const model = editorRef.current.getModel();
+        if (model) {
+            monacoRef.current.editor.setModelMarkers(model, "judge", []);
+        }
+    }, []);
+
+    // Jump to specific line in Monaco editor
+    const jumpToLine = useCallback((line) => {
+        if (!editorRef.current || !line) return;
+        const lineNum = Number(line);
+        editorRef.current.revealLineInCenter(lineNum);
+        editorRef.current.setPosition({ lineNumber: lineNum, column: 1 });
+        editorRef.current.focus();
+    }, []);
 
     // Timer effect
     useEffect(() => {
@@ -189,6 +235,7 @@ export function ProblemEditor() {
     // When language changes, restore language-specific saved or starter code
     const handleLanguageChange = (newLang) => {
         setLanguage(newLang);
+        clearEditorMarkers();
         const saved = localStorage.getItem(`codebits_code_${problemId}_${newLang}`);
         if (saved) {
             setCode(saved);
@@ -216,6 +263,7 @@ export function ProblemEditor() {
             );
             const defaultCode = starter?.initialCode || "// Write your solution here\n";
             setCode(defaultCode);
+            clearEditorMarkers();
             localStorage.removeItem(autoSaveKey);
             setIsDirty(false);
             toast.success("Code reset to starter template");
@@ -241,6 +289,7 @@ export function ProblemEditor() {
         if (isRunning || isSubmitting) return;
         setIsRunning(true);
         setConsoleOutput(null);
+        clearEditorMarkers();
         setActiveConsoleTab("result");
         setMobileTab("console");
 
@@ -255,15 +304,25 @@ export function ProblemEditor() {
             });
 
             setConsoleOutput(data);
-            if (data.status === "Accepted") {
+            const verdict = data.verdict || data.status;
+
+            if (verdict === VERDICTS.ACCEPTED || data.passed === true) {
                 toast.success("Test cases executed successfully!");
             } else {
-                toast.error(`Execution: ${data.status}`);
+                toast.error(`Execution: ${verdict}`);
+                if (data.errorLine) {
+                    updateEditorMarkers(data.errorLine, data.errorMessage);
+                }
             }
         } catch (err) {
             console.error("Run error:", err);
-            toast.error(err.response?.data?.error || err.message || "Execution failed");
-            setConsoleOutput({ error: err.message, status: "Error" });
+            const errorPayload = err.response?.data || {
+                verdict: VERDICTS.INTERNAL_ERROR,
+                status: VERDICTS.INTERNAL_ERROR,
+                errorMessage: err.message || "Failed to execute code",
+            };
+            setConsoleOutput(errorPayload);
+            toast.error(errorPayload.errorMessage || "Execution failed");
         } finally {
             setIsRunning(false);
         }
@@ -274,6 +333,7 @@ export function ProblemEditor() {
         if (isRunning || isSubmitting) return;
         setIsSubmitting(true);
         setSubmissionResult(null);
+        clearEditorMarkers();
         setActiveLeftTab("submissions");
         setMobileTab("description");
 
@@ -285,16 +345,26 @@ export function ProblemEditor() {
 
             setSubmissionResult(data);
             fetchSubmissions();
+            const verdict = data.verdict || data.status;
 
-            if (data.status === "Accepted") {
+            if (verdict === VERDICTS.ACCEPTED || data.passed === true) {
                 triggerConfetti();
                 toast.success("🎉 Solution Accepted!", { duration: 4000 });
             } else {
-                toast.error(`Verdict: ${data.status}`);
+                toast.error(`Verdict: ${verdict}`);
+                if (data.errorLine) {
+                    updateEditorMarkers(data.errorLine, data.errorMessage);
+                }
             }
         } catch (err) {
             console.error("Submit error:", err);
-            toast.error(err.response?.data || "Failed to submit code");
+            const errorPayload = err.response?.data || {
+                verdict: VERDICTS.INTERNAL_ERROR,
+                status: VERDICTS.INTERNAL_ERROR,
+                errorMessage: err.message || "Failed to submit code",
+            };
+            setSubmissionResult(errorPayload);
+            toast.error(errorPayload.errorMessage || "Failed to submit code");
         } finally {
             setIsSubmitting(false);
         }
@@ -343,6 +413,7 @@ export function ProblemEditor() {
             setLanguage(pastLang);
         }
         setCode(pastCode);
+        clearEditorMarkers();
         setIsDirty(true);
         setInspectingSubmission(null);
         setMobileTab("code");
@@ -387,7 +458,7 @@ export function ProblemEditor() {
                             disabled={!prevProblemId}
                             onClick={() => prevProblemId && navigate(`/problem-editor/${prevProblemId}`)}
                             title="Previous Problem"
-                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 disabled:pointer-events-none hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 disabled:pointer-events-none hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
                         >
                             <ChevronLeft size={16} />
                         </button>
@@ -395,7 +466,7 @@ export function ProblemEditor() {
                             disabled={!nextProblemId}
                             onClick={() => nextProblemId && navigate(`/problem-editor/${nextProblemId}`)}
                             title="Next Problem"
-                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 disabled:pointer-events-none hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 disabled:pointer-events-none hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
                         >
                             <ChevronRight size={16} />
                         </button>
@@ -415,7 +486,7 @@ export function ProblemEditor() {
                             <span>{formatTimer(timerSeconds)}</span>
                             <button
                                 onClick={() => setIsTimerRunning(!isTimerRunning)}
-                                className="p-0.5 hover:text-red-500 text-gray-400"
+                                className="p-0.5 hover:text-red-500 text-gray-400 cursor-pointer"
                                 title={isTimerRunning ? "Pause timer" : "Resume timer"}
                             >
                                 {isTimerRunning ? <PauseCircle size={13} /> : <PlayCircle size={13} />}
@@ -472,7 +543,7 @@ export function ProblemEditor() {
                     <button
                         key={t.id}
                         onClick={() => setMobileTab(t.id)}
-                        className={`flex-1 py-2 text-xs font-bold border-b-2 text-center transition-colors ${
+                        className={`flex-1 py-2 text-xs font-bold border-b-2 text-center transition-colors cursor-pointer ${
                             mobileTab === t.id
                                 ? "border-red-600 text-red-600"
                                 : "border-transparent text-gray-500 hover:text-gray-700"
@@ -615,45 +686,11 @@ export function ProblemEditor() {
                                     <div className="space-y-4">
                                         {/* Latest Submission Result Banner */}
                                         {submissionResult && (
-                                            <div
-                                                className={`p-4 rounded-2xl border ${
-                                                    submissionResult.status === "Accepted"
-                                                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                                                        : "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    {submissionResult.status === "Accepted" ? (
-                                                        <CheckCircle2 size={20} />
-                                                    ) : (
-                                                        <AlertCircle size={20} />
-                                                    )}
-                                                    <h3 className="text-base font-black">
-                                                        {submissionResult.status}
-                                                    </h3>
-                                                </div>
-
-                                                <div className="grid grid-cols-2 gap-3 mt-3 text-xs">
-                                                    <div className="p-2.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
-                                                        <span className="text-gray-400 block text-[10px]">Runtime</span>
-                                                        <span className="font-bold text-gray-900 dark:text-white">
-                                                            {Math.round((submissionResult.runtime || 0) * 1000)} ms
-                                                        </span>
-                                                    </div>
-                                                    <div className="p-2.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-black/5 dark:border-white/5">
-                                                        <span className="text-gray-400 block text-[10px]">Memory</span>
-                                                        <span className="font-bold text-gray-900 dark:text-white">
-                                                            {((submissionResult.memory || 0) / 1024).toFixed(2)} MB
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {submissionResult.errorMessage && (
-                                                    <div className="mt-3 p-3 rounded-xl bg-black/10 dark:bg-black/30 font-mono text-xs whitespace-pre-wrap break-words">
-                                                        {submissionResult.errorMessage}
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <VerdictDisplay
+                                                result={submissionResult}
+                                                onJumpToLine={jumpToLine}
+                                                onRetry={handleSubmit}
+                                            />
                                         )}
 
                                         {/* Submissions History Table */}
@@ -675,42 +712,47 @@ export function ProblemEditor() {
                                             </div>
                                         ) : (
                                             <div className="space-y-2">
-                                                {submissionsHistory.map((sub, idx) => (
-                                                    <div
-                                                        key={sub._id || idx}
-                                                        onClick={() => setInspectingSubmission(sub)}
-                                                        className="p-3 rounded-xl border border-gray-200/80 dark:border-white/5 hover:border-red-500/40 bg-gray-50/50 dark:bg-white/[0.02] flex items-center justify-between cursor-pointer transition-all"
-                                                    >
-                                                        <div className="flex items-center gap-2.5">
-                                                            {sub.status === "Accepted" ? (
-                                                                <CheckCircle2 size={16} className="text-emerald-500" />
-                                                            ) : (
-                                                                <AlertCircle size={16} className="text-rose-500" />
-                                                            )}
-                                                            <div>
-                                                                <div
-                                                                    className={`text-xs font-bold ${
-                                                                        sub.status === "Accepted"
-                                                                            ? "text-emerald-500"
-                                                                            : "text-rose-500"
-                                                                    }`}
-                                                                >
-                                                                    {sub.status}
-                                                                </div>
-                                                                <div className="text-[10px] text-gray-400">
-                                                                    {formatRelativeTime(sub.createdAt)}
+                                                {submissionsHistory.map((sub, idx) => {
+                                                    const verdict = sub.verdict || sub.status || "Unknown";
+                                                    const isAcc = verdict === VERDICTS.ACCEPTED;
+                                                    const config = VERDICT_CONFIG[verdict] || {
+                                                        badgeClass: isAcc ? "text-emerald-500" : "text-rose-500",
+                                                    };
+                                                    return (
+                                                        <div
+                                                            key={sub._id || idx}
+                                                            onClick={() => setInspectingSubmission(sub)}
+                                                            className="p-3 rounded-xl border border-gray-200/80 dark:border-white/5 hover:border-red-500/40 bg-gray-50/50 dark:bg-white/[0.02] flex items-center justify-between cursor-pointer transition-all"
+                                                        >
+                                                            <div className="flex items-center gap-2.5">
+                                                                {isAcc ? (
+                                                                    <CheckCircle2 size={16} className="text-emerald-500" />
+                                                                ) : (
+                                                                    <AlertCircle size={16} className="text-rose-500" />
+                                                                )}
+                                                                <div>
+                                                                    <div
+                                                                        className={`text-xs font-bold ${
+                                                                            isAcc ? "text-emerald-500" : "text-rose-500"
+                                                                        }`}
+                                                                    >
+                                                                        {verdict}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-gray-400">
+                                                                        {formatRelativeTime(sub.createdAt)}
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
 
-                                                        <div className="text-right text-[11px] text-gray-500">
-                                                            <div className="font-semibold capitalize">{sub.language}</div>
-                                                            {sub.status === "Accepted" && (
-                                                                <div>{Math.round((sub.runtime || 0) * 1000)}ms</div>
-                                                            )}
+                                                            <div className="text-right text-[11px] text-gray-500">
+                                                                <div className="font-semibold capitalize">{sub.language}</div>
+                                                                {isAcc && sub.runtime !== undefined && (
+                                                                    <div>{Math.round((sub.runtime || 0) * 1000)}ms</div>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -789,9 +831,11 @@ export function ProblemEditor() {
                                             onChange={(val) => {
                                                 setCode(val || "");
                                                 setIsDirty(true);
+                                                clearEditorMarkers();
                                             }}
-                                            onMount={(editor) => {
+                                            onMount={(editor, monaco) => {
                                                 editorRef.current = editor;
+                                                monacoRef.current = monaco;
                                             }}
                                             options={{
                                                 fontSize,
@@ -911,73 +955,11 @@ export function ProblemEditor() {
                                                         Click &quot;Run&quot; or press <kbd className="font-mono bg-gray-100 dark:bg-white/10 px-1 py-0.5 rounded">Ctrl+Enter</kbd> to inspect output.
                                                     </div>
                                                 ) : (
-                                                    <div className="space-y-4">
-                                                        {/* Overall Status Banner */}
-                                                        <div className="flex items-center justify-between">
-                                                            <div
-                                                                className={`flex items-center gap-1.5 font-bold text-sm ${
-                                                                    consoleOutput.status === "Accepted"
-                                                                        ? "text-emerald-500"
-                                                                        : "text-rose-500"
-                                                                }`}
-                                                            >
-                                                                {consoleOutput.status === "Accepted" ? (
-                                                                    <CheckCircle2 size={16} />
-                                                                ) : (
-                                                                    <AlertCircle size={16} />
-                                                                )}
-                                                                <span>{consoleOutput.status}</span>
-                                                            </div>
-                                                            {consoleOutput.runTime !== undefined && (
-                                                                <span className="text-[11px] text-gray-400">
-                                                                    Runtime: {Math.round(consoleOutput.runTime * 1000)}ms
-                                                                </span>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Individual Test Cases Results */}
-                                                        {consoleOutput.results && (
-                                                            <div className="space-y-2.5">
-                                                                {consoleOutput.results.map((res, idx) => {
-                                                                    const isCaseAccepted =
-                                                                        res.status_id === 3 || res.status === "Accepted";
-                                                                    return (
-                                                                        <div
-                                                                            key={idx}
-                                                                            className={`p-3 rounded-xl border ${
-                                                                                isCaseAccepted
-                                                                                    ? "border-emerald-500/20 bg-emerald-500/[0.02]"
-                                                                                    : "border-rose-500/20 bg-rose-500/[0.02]"
-                                                                            }`}
-                                                                        >
-                                                                            <div className="flex justify-between text-[11px] mb-1.5">
-                                                                                <span
-                                                                                    className={`font-bold ${
-                                                                                        isCaseAccepted
-                                                                                            ? "text-emerald-500"
-                                                                                            : "text-rose-500"
-                                                                                    }`}
-                                                                                >
-                                                                                    Case {idx + 1}: {isCaseAccepted ? "Passed" : "Wrong Output"}
-                                                                                </span>
-                                                                                <span className="text-gray-400">{res.time}s</span>
-                                                                            </div>
-                                                                            <div className="text-gray-800 dark:text-gray-200">
-                                                                                <strong className="text-gray-400">Stdout: </strong>
-                                                                                {res.stdout || "<no output>"}
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-
-                                                        {consoleOutput.errorMessage && (
-                                                            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 whitespace-pre-wrap">
-                                                                {consoleOutput.errorMessage}
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                    <VerdictDisplay
+                                                        result={consoleOutput}
+                                                        onJumpToLine={jumpToLine}
+                                                        onRetry={handleRunCode}
+                                                    />
                                                 )}
                                             </div>
                                         )}
@@ -1009,7 +991,17 @@ export function ProblemEditor() {
                                 language={language}
                                 value={code}
                                 theme={isDark ? "vs-dark" : "light"}
-                                onChange={(val) => setCode(val || "")}
+                                onChange={(val) => {
+                                    setCode(val || "");
+                                    setIsDirty(true);
+                                    clearEditorMarkers();
+                                }}
+                                onMount={(editor, monaco) => {
+                                    if (!editorRef.current) {
+                                        editorRef.current = editor;
+                                        monacoRef.current = monaco;
+                                    }
+                                }}
                                 options={{ fontSize: 13, minimap: { enabled: false } }}
                             />
                         </div>
@@ -1017,13 +1009,15 @@ export function ProblemEditor() {
 
                     {mobileTab === "console" && (
                         <div className="space-y-3 font-mono text-xs">
-                            <h3 className="font-bold">Output &amp; Verdicts</h3>
+                            <h3 className="font-bold text-sm">Execution Verdict &amp; Output</h3>
                             {consoleOutput ? (
-                                <pre className="p-3 bg-gray-100 dark:bg-white/5 rounded-xl overflow-x-auto">
-                                    {JSON.stringify(consoleOutput, null, 2)}
-                                </pre>
+                                <VerdictDisplay
+                                    result={consoleOutput}
+                                    onJumpToLine={jumpToLine}
+                                    onRetry={handleRunCode}
+                                />
                             ) : (
-                                <p className="text-gray-400">Click &quot;Run&quot; above to execute code.</p>
+                                <p className="text-gray-400 font-sans">Click &quot;Run&quot; above to execute code.</p>
                             )}
                         </div>
                     )}
@@ -1044,21 +1038,34 @@ export function ProblemEditor() {
                             <div>
                                 <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                     <span>Submission Code</span>
-                                    <Badge variant={inspectingSubmission.status === "Accepted" ? "easy" : "hard"}>
-                                        {inspectingSubmission.status}
+                                    <Badge
+                                        variant={
+                                            (inspectingSubmission.verdict || inspectingSubmission.status) === VERDICTS.ACCEPTED
+                                                ? "easy"
+                                                : "hard"
+                                        }
+                                    >
+                                        {inspectingSubmission.verdict || inspectingSubmission.status}
                                     </Badge>
                                 </h3>
                                 <p className="text-[11px] text-gray-400 mt-0.5">
                                     Submitted {new Date(inspectingSubmission.createdAt).toLocaleString()} in {inspectingSubmission.language}
+                                    {inspectingSubmission.runtime !== undefined && ` • ${Math.round(inspectingSubmission.runtime * 1000)}ms`}
                                 </p>
                             </div>
                             <button
                                 onClick={() => setInspectingSubmission(null)}
-                                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+                                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg cursor-pointer"
                             >
                                 <X size={18} />
                             </button>
                         </div>
+
+                        {inspectingSubmission.errorMessage && (
+                            <div className="px-6 py-3 bg-rose-500/[0.06] border-b border-rose-500/20 text-rose-500 font-mono text-xs whitespace-pre-wrap max-h-32 overflow-y-auto">
+                                {inspectingSubmission.errorMessage}
+                            </div>
+                        )}
 
                         <div className="flex-1 p-4 overflow-hidden min-h-[300px]">
                             <Editor
@@ -1120,7 +1127,7 @@ export function ProblemEditor() {
                             </h3>
                             <button
                                 onClick={() => setShowShortcutHelp(false)}
-                                className="p-1 text-gray-400 hover:text-gray-600"
+                                className="p-1 text-gray-400 hover:text-gray-600 cursor-pointer"
                             >
                                 <X size={16} />
                             </button>
