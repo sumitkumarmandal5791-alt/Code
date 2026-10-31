@@ -63,7 +63,7 @@ const userCodeSubmit = async (req, res) => {
     submitToDb.testCasesPassed = classified.passedCases;
     submitToDb.runtime = classified.runtimeMs / 1000;
     submitToDb.memory = classified.memoryKb;
-    submitToDb.errorMessage = classified.errorDetails || classified.message || "";
+    submitToDb.errorMessage = classified.verdict === VERDICTS.ACCEPTED ? "" : (classified.errorDetails || classified.message || "");
     submitToDb.errorLine = classified.line;
     submitToDb.failedTestIndex = classified.failedTestIndex;
     submitToDb.actualOutput = classified.actualOutput || "";

@@ -16,11 +16,11 @@ function normalizeOutput(str) {
 function decodeText(val) {
   if (!val) return "";
   if (typeof val !== "string") return String(val);
-  const trimmed = val.trim();
+  const cleaned = val.replace(/\s+/g, "");
   // Check if string looks like valid base64
-  if (trimmed && /^[A-Za-z0-9+/]+={0,2}$/.test(trimmed) && trimmed.length % 4 === 0) {
+  if (cleaned && /^[A-Za-z0-9+/]+={0,2}$/.test(cleaned) && cleaned.length % 4 === 0) {
     try {
-      const decoded = Buffer.from(trimmed, "base64").toString("utf8");
+      const decoded = Buffer.from(cleaned, "base64").toString("utf8");
       // Verify decoded contains printable characters
       if (/^[\s\x20-\x7E\u00A0-\uFFFF]*$/.test(decoded)) {
         return decoded;
@@ -44,6 +44,33 @@ function truncateOutput(text, maxLen = MAX_OUTPUT_LENGTH) {
     };
   }
   return { text, truncated: false };
+}
+
+/**
+ * Formats compiler output into clean LeetCode-style diagnostics:
+ * "main.cpp:17:33: error: ..." -> "Line 17: Char 33: error: ..."
+ */
+function formatLeetCodeDiagnostics(rawText, lineOffset = 0) {
+  if (!rawText) return "";
+  let text = String(rawText);
+
+  // Strip temporary Linux sandbox directory paths
+  text = text.replace(/\/tmp\/[a-zA-Z0-9_\-\.\/]+/g, "solution.cpp");
+  text = text.replace(/\/usr\/[a-zA-Z0-9_\-\.\/]+/g, "");
+
+  // Convert "main.cpp:17:33:" or "solution.cpp:17:33:" into "Line 17: Char 33:"
+  text = text.replace(/(?:main|solution|[a-zA-Z0-9_-]+)\.(cpp|c|cc|cxx|h|hpp|java|js|py):(\d+):(\d+):/gi, (match, ext, line, col) => {
+    const adjustedLine = Math.max(1, parseInt(line, 10) - lineOffset);
+    return `Line ${adjustedLine}: Char ${col}:`;
+  });
+
+  // Convert "main.cpp:17:" into "Line 17:"
+  text = text.replace(/(?:main|solution|[a-zA-Z0-9_-]+)\.(cpp|c|cc|cxx|h|hpp|java|js|py):(\d+):/gi, (match, ext, line) => {
+    const adjustedLine = Math.max(1, parseInt(line, 10) - lineOffset);
+    return `Line ${adjustedLine}:`;
+  });
+
+  return text.trim();
 }
 
 /**
@@ -113,10 +140,11 @@ function classifySingleCase(rawCase, expectedOutput = "", isHidden = false, lang
   // 2. COMPILE_ERROR
   if (statusId === JUDGE0_STATUS.COMPILATION_ERROR || rawCompileOutput.trim().length > 0) {
     const { line, cleanMessage } = extractErrorLineAndMessage(rawCompileOutput, language, lineOffset);
+    const formattedDiagnostics = formatLeetCodeDiagnostics(rawCompileOutput, lineOffset);
     return {
       verdict: VERDICTS.COMPILE_ERROR,
-      message: cleanMessage || "Compilation Error: Please check your syntax.",
-      errorDetails: rawCompileOutput,
+      message: formattedDiagnostics || cleanMessage || "Compilation Error: Please check your syntax.",
+      errorDetails: formattedDiagnostics || rawCompileOutput,
       line,
       runtimeMs,
       memoryKb,
@@ -172,11 +200,16 @@ function classifySingleCase(rawCase, expectedOutput = "", isHidden = false, lang
     else if (statusId === JUDGE0_STATUS.NZEC) friendlyReason = "Non-Zero Exit Code (Uncaught Exception)";
 
     const { line, cleanMessage } = extractErrorLineAndMessage(rawStderr, language, lineOffset);
+    const formattedDiagnostics = formatLeetCodeDiagnostics(rawStderr, lineOffset);
+
+    const fullMessage = formattedDiagnostics
+      ? (formattedDiagnostics.includes(friendlyReason) ? formattedDiagnostics : `${friendlyReason}: ${formattedDiagnostics}`)
+      : (cleanMessage ? `${friendlyReason}: ${cleanMessage}` : friendlyReason);
 
     return {
       verdict: VERDICTS.RUNTIME_ERROR,
-      message: cleanMessage ? `${friendlyReason}: ${cleanMessage}` : friendlyReason,
-      errorDetails: rawStderr || friendlyReason,
+      message: fullMessage,
+      errorDetails: formattedDiagnostics || rawStderr || friendlyReason,
       line,
       runtimeMs,
       memoryKb,

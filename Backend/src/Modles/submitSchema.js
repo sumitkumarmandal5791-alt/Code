@@ -26,8 +26,8 @@ const submissionSchema = new Schema(
     status: {
       type: String,
       enum: [
-        "pending",
-        "Running",
+        VERDICTS.PENDING,
+        VERDICTS.RUNNING,
         VERDICTS.ACCEPTED,
         VERDICTS.WRONG_ANSWER,
         VERDICTS.COMPILE_ERROR,
@@ -36,15 +36,20 @@ const submissionSchema = new Schema(
         VERDICTS.MEMORY_LIMIT_EXCEEDED,
         VERDICTS.OUTPUT_LIMIT_EXCEEDED,
         VERDICTS.INTERNAL_ERROR,
-        // Legacy fallbacks for historical DB records
+        // Legacy fallbacks for historical DB records & lowercase variants
+        "Pending",
+        "pending",
+        "Running",
+        "running",
+        "Accepted",
         "Wrong",
         "Compilation Error",
       ],
-      default: "pending",
+      default: VERDICTS.PENDING,
     },
     verdict: {
       type: String,
-      default: "",
+      default: VERDICTS.PENDING,
     },
     runtime: {
       type: Number,

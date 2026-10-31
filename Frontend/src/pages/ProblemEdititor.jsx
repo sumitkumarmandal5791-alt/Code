@@ -30,6 +30,7 @@ import {
     History,
     X,
     Plus,
+    Video,
 } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import toast from "react-hot-toast";
@@ -38,6 +39,7 @@ import AI from "./AI";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import { VerdictDisplay } from "../components/VerdictDisplay";
+import VideoSolution from "../components/VideoSolution";
 import { VERDICTS, VERDICT_CONFIG } from "../utils/verdicts";
 import { triggerConfetti } from "../lib/confetti";
 import { useTheme } from "../context/ThemeContext";
@@ -566,6 +568,7 @@ export function ProblemEditor() {
                                     {[
                                         { id: "description", label: "Description", icon: BookOpen },
                                         { id: "solutions", label: "Solution", icon: FileCode },
+                                        { id: "video", label: "Video Solution", icon: Video },
                                         { id: "submissions", label: "Submissions", icon: History },
                                         { id: "ai", label: "AI Tutor", icon: Sparkles },
                                     ].map((t) => {
@@ -679,6 +682,28 @@ export function ProblemEditor() {
                                                 }}
                                             />
                                         </div>
+                                    </div>
+                                )}
+
+                                {activeLeftTab === "video" && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-white/5">
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    <Video size={16} className="text-red-500" />
+                                                    <span>Video Solution</span>
+                                                </h3>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                                    Step-by-step algorithmic explanation and code walkthrough
+                                                </p>
+                                            </div>
+                                            {problem?.video?.videoId && (
+                                                <span className="text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">
+                                                    Official
+                                                </span>
+                                            )}
+                                        </div>
+                                        <VideoSolution video={problem?.video} />
                                     </div>
                                 )}
 
@@ -1031,10 +1056,10 @@ export function ProblemEditor() {
                     onClick={() => setInspectingSubmission(null)}
                 >
                     <div
-                        className="w-full max-w-2xl bg-white dark:bg-[#151515] rounded-3xl border border-gray-200 dark:border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
+                        className="w-full max-w-3xl bg-white dark:bg-[#151515] rounded-3xl border border-gray-200 dark:border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-white/10">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02]">
                             <div>
                                 <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                     <span>Submission Code</span>
@@ -1048,28 +1073,36 @@ export function ProblemEditor() {
                                         {inspectingSubmission.verdict || inspectingSubmission.status}
                                     </Badge>
                                 </h3>
-                                <p className="text-[11px] text-gray-400 mt-0.5">
-                                    Submitted {new Date(inspectingSubmission.createdAt).toLocaleString()} in {inspectingSubmission.language}
-                                    {inspectingSubmission.runtime !== undefined && ` • ${Math.round(inspectingSubmission.runtime * 1000)}ms`}
+                                <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-2">
+                                    <span>Submitted {new Date(inspectingSubmission.createdAt).toLocaleString()} in <strong className="capitalize text-gray-700 dark:text-gray-300">{inspectingSubmission.language}</strong></span>
+                                    {inspectingSubmission.runtime !== undefined && (
+                                        <span>• {Math.round(inspectingSubmission.runtime * 1000)}ms</span>
+                                    )}
+                                    {inspectingSubmission.memory !== undefined && inspectingSubmission.memory > 0 && (
+                                        <span>• {((inspectingSubmission.memory || 0) / 1024).toFixed(2)} MB</span>
+                                    )}
                                 </p>
                             </div>
                             <button
                                 onClick={() => setInspectingSubmission(null)}
-                                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg cursor-pointer"
+                                className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl cursor-pointer transition-colors"
                             >
                                 <X size={18} />
                             </button>
                         </div>
 
-                        {inspectingSubmission.errorMessage && (
-                            <div className="px-6 py-3 bg-rose-500/[0.06] border-b border-rose-500/20 text-rose-500 font-mono text-xs whitespace-pre-wrap max-h-32 overflow-y-auto">
-                                {inspectingSubmission.errorMessage}
-                            </div>
+                        {/* Only show error message banner if submission actually failed */}
+                        {(inspectingSubmission.verdict || inspectingSubmission.status) !== VERDICTS.ACCEPTED &&
+                            inspectingSubmission.errorMessage && (
+                                <div className="px-6 py-3 bg-rose-500/[0.08] border-b border-rose-500/20 text-rose-500 font-mono text-xs whitespace-pre-wrap max-h-36 overflow-y-auto">
+                                    {inspectingSubmission.errorMessage}
+                                </div>
                         )}
 
-                        <div className="flex-1 p-4 overflow-hidden min-h-[300px]">
+                        {/* Code Editor Area with explicit height & automatic layout */}
+                        <div className="w-full h-[420px] bg-white dark:bg-[#121212] relative overflow-hidden">
                             <Editor
-                                height="100%"
+                                height="420px"
                                 language={inspectingSubmission.language}
                                 value={inspectingSubmission.code}
                                 theme={isDark ? "vs-dark" : "light"}
@@ -1077,11 +1110,19 @@ export function ProblemEditor() {
                                     readOnly: true,
                                     fontSize: 13,
                                     minimap: { enabled: false },
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    fontFamily: "'Fira Code', 'Cascadia Code', monospace",
+                                    lineNumbers: "on",
+                                    renderLineHighlight: "all",
+                                    padding: { top: 12, bottom: 12 },
+                                    folding: true,
+                                    domReadOnly: true,
                                 }}
                             />
                         </div>
 
-                        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-white/10">
+                        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02]">
                             <Button
                                 size="sm"
                                 variant="secondary"

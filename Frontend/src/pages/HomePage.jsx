@@ -17,6 +17,7 @@ import {
     RotateCcw,
     SlidersHorizontal,
     TrendingUp,
+    Video,
 } from "lucide-react";
 import useProblems from "../hooks/useProblems";
 
@@ -354,12 +355,23 @@ export function HomePage() {
 
                                             {/* Title & Tags */}
                                             <div className="col-span-7 sm:col-span-6 min-w-0">
-                                                <Link
-                                                    to={`/problem-editor/${problem._id}`}
-                                                    className="text-gray-900 dark:text-gray-100 hover:text-red-600 dark:hover:text-red-400 font-bold transition-colors text-xs sm:text-sm truncate block"
-                                                >
-                                                    {problem.title}
-                                                </Link>
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <Link
+                                                        to={`/problem-editor/${problem._id}`}
+                                                        className="text-gray-900 dark:text-gray-100 hover:text-red-600 dark:hover:text-red-400 font-bold transition-colors text-xs sm:text-sm truncate"
+                                                    >
+                                                        {problem.title}
+                                                    </Link>
+                                                    {(problem.hasVideo || Boolean(problem.video?.videoId)) && (
+                                                        <span
+                                                            title="Video Solution Available"
+                                                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-semibold flex-shrink-0"
+                                                        >
+                                                            <Video size={11} className="fill-current" />
+                                                            <span className="hidden sm:inline text-[9px] font-bold uppercase tracking-wider">Video</span>
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {problem.tags && (
                                                     <div className="flex flex-wrap gap-1 mt-1">
                                                         {(Array.isArray(problem.tags)

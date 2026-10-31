@@ -1,85 +1,110 @@
-const mongoose = require("mongoose")
-const { Schema } = mongoose
+const mongoose = require("mongoose");
+const { Schema } = mongoose;
 
-const schema = new Schema({
+const schema = new Schema(
+  {
     title: {
-        type: String,
-        required: true,
-        trim: true,
+      type: String,
+      required: true,
+      trim: true,
     },
     description: {
-        type: String,
-        required: true,
-        trim: true,
+      type: String,
+      required: true,
+      trim: true,
     },
     difficulty: {
-        type: String,
-        required: true,
-        enum: ["easy", "medium", "hard"],
+      type: String,
+      required: true,
+      enum: ["easy", "medium", "hard"],
     },
-    tags: [{
+    tags: [
+      {
         type: String,
         trim: true,
-        required: true
-    }],
+        required: true,
+      },
+    ],
     visibleTestCases: [
-        {
-            input: {
-                type: String,
-                required: true
-            },
-            output: {
-                type: String,
-                required: true
-            },
-            explanation: {
-                type: String,
-
-            }
-        }
+      {
+        input: {
+          type: String,
+          required: true,
+        },
+        output: {
+          type: String,
+          required: true,
+        },
+        explanation: {
+          type: String,
+        },
+      },
     ],
     hiddenTestCases: [
-        {
-            input: {
-                type: String,
-                required: true
-            },
-            output: {
-                type: String,
-                required: true
-            }
-        }
+      {
+        input: {
+          type: String,
+          required: true,
+        },
+        output: {
+          type: String,
+          required: true,
+        },
+      },
     ],
     startCode: [
-        {
-            language: {
-                type: String,
-                required: true
-            },
-            initialCode: {
-                type: String,
-                required: true
-            }
-        }
+      {
+        language: {
+          type: String,
+          required: true,
+        },
+        initialCode: {
+          type: String,
+          required: true,
+        },
+      },
     ],
     referenceSolution: [
-        {
-            language: {
-                type: String,
-                required: true
-            },
-            code: {
-                type: String,
-                required: true
-            }
-        }
+      {
+        language: {
+          type: String,
+          required: true,
+        },
+        code: {
+          type: String,
+          required: true,
+        },
+      },
     ],
     problemCreater: {
-        type: Schema.Types.ObjectId,
-        ref: "User"
-    }
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    video: {
+      provider: {
+        type: String,
+        default: "youtube",
+      },
+      videoId: {
+        type: String,
+        trim: true,
+      },
+      startTime: {
+        type: Number,
+        default: 0,
+      },
+      channel: {
+        type: String,
+        default: "takeUforward",
+      },
+      originalUrl: {
+        type: String,
+        trim: true,
+      },
+    },
+  },
+  { timestamps: true }
+);
 
-}, { timestamps: true })
-
-const Problem = mongoose.model("Problem", schema)
-module.exports = Problem 
+const Problem = mongoose.model("Problem", schema);
+module.exports = Problem;

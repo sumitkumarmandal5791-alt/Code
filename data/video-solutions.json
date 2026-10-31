@@ -1,0 +1,55 @@
+{
+  "problems": [
+    {
+      "name": "Two Sum",
+      "difficulty": "Easy",
+      "video_solution": "https://www.youtube.com/watch?v=KLlXCFG5TnA"
+    },
+    {
+      "name": "Reverse Linked List",
+      "difficulty": "Easy",
+      "video_solution": "https://www.youtube.com/watch?v=G0_I-ZF0S38"
+    },
+    {
+      "name": "Valid Parentheses",
+      "difficulty": "Easy",
+      "video_solution": "https://www.youtube.com/watch?v=WTzjTskDFMg"
+    },
+    {
+      "name": "Maximum Subarray",
+      "difficulty": "Medium",
+      "video_solution": "https://www.youtube.com/watch?v=5WZl3MMT0Eg"
+    },
+    {
+      "name": "Merge Two Sorted Lists",
+      "difficulty": "Easy",
+      "video_solution": "https://www.youtube.com/watch?v=T0u5nwSA0w0&t=30133s"
+    },
+    {
+      "name": "Best Time to Buy and Sell Stock",
+      "difficulty": "Easy",
+      "video_solution": "https://www.youtube.com/watch?v=1pkOgXD63yU"
+    },
+    {
+      "name": "Climbing Stairs",
+      "difficulty": "Easy",
+      "video_solution": "https://www.youtube.com/watch?v=T0u5nwSA0w0&t=14286s"
+    },
+    {
+      "name": "Binary Search",
+      "difficulty": "Easy",
+      "video_solution": "https://www.youtube.com/watch?v=T0u5nwSA0w0&t=22761s"
+    },
+    {
+      "name": "Longest Common Subsequence",
+      "difficulty": "Medium",
+      "video_solution": "https://www.youtube.com/watch?v=T0u5nwSA0w0&t=104040s"
+    },
+    {
+      "name": "Container With Most Water",
+      "difficulty": "Medium",
+      "video_solution": "https://www.youtube.com/watch?v=T0u5nwSA0w0&t=9600s"
+    }
+  ]
+}
+
