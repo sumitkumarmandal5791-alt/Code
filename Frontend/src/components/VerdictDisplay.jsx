@@ -12,17 +12,42 @@ import {
 import { VERDICTS } from "../utils/verdicts";
 import Button from "./ui/Button";
 
+export function normalizeVerdict(v) {
+  if (!v) return "";
+  const s = String(v).trim().toLowerCase().replace(/_/g, " ");
+  if (s.includes("compile") || s.includes("compilation") || s.includes("syntax")) return VERDICTS.COMPILE_ERROR;
+  if (s.includes("runtime") || s.includes("sigsegv") || s.includes("sigfpe") || s.includes("sigabrt") || s.includes("nzec") || s.includes("segmentation")) return VERDICTS.RUNTIME_ERROR;
+  if (s.includes("time limit") || s.includes("tle")) return VERDICTS.TIME_LIMIT_EXCEEDED;
+  if (s.includes("memory limit") || s.includes("mle") || s.includes("sigxfsz")) return VERDICTS.MEMORY_LIMIT_EXCEEDED;
+  if (s.includes("output limit") || s.includes("ole")) return VERDICTS.OUTPUT_LIMIT_EXCEEDED;
+  if (s.includes("wrong answer") || s === "wa") return VERDICTS.WRONG_ANSWER;
+  if (s.includes("internal error")) return VERDICTS.INTERNAL_ERROR;
+  if (s.includes("pending")) return VERDICTS.PENDING;
+  if (s.includes("running")) return VERDICTS.RUNNING;
+  if (s.includes("accept")) return VERDICTS.ACCEPTED;
+  return v;
+}
+
 export function VerdictDisplay({ result, onJumpToLine, onRetry }) {
   const [copiedError, setCopiedError] = useState(false);
   const [selectedCaseIdx, setSelectedCaseIdx] = useState(0);
 
   if (!result) return null;
 
-  const verdict = result.verdict || result.status || "Unknown";
-  const isAccepted = verdict === VERDICTS.ACCEPTED || result.passed === true;
+  const rawVerdict = result.verdict || result.status || "Unknown";
+  let verdict = normalizeVerdict(rawVerdict);
 
   const errorLine = result.errorLine ?? result.line;
   const rawErrorMessage = result.errorMessage || result.errorDetails || result.message || "";
+
+  // Auto-detect compile error if diagnostic markers exist
+  if (verdict !== VERDICTS.COMPILE_ERROR && verdict !== VERDICTS.RUNTIME_ERROR) {
+    if (rawErrorMessage && (/error:\s+expected/i.test(rawErrorMessage) || /Line \d+: Char \d+:/i.test(rawErrorMessage) || /error generated/i.test(rawErrorMessage))) {
+      verdict = VERDICTS.COMPILE_ERROR;
+    }
+  }
+
+  const isAccepted = verdict === VERDICTS.ACCEPTED || result.passed === true;
   const failedTestIndex = result.failedTestIndex;
   const totalTestCases = result.totalTestCases ?? result.totalCases ?? 1;
   const passedCases = result.testCasesPassed ?? result.passedTestCases ?? result.passedCases ?? 0;

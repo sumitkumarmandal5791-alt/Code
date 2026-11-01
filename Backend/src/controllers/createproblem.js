@@ -4,6 +4,8 @@ const Submission = require("../Modles/submitSchema");
 const Video = require("../Modles/videoSchema");
 const { getLanguageId } = require("../utils/languagecode");
 const { submitTestCase, submitTokens } = require("../utils/languagecode");
+const { checkUserVideoAccess } = require("../services/accessService");
+const pricing = require("../config/pricing");
 
 const waiting = (timer) => {
     return new Promise((resolve) => {
@@ -182,7 +184,28 @@ const getProblemById = async (req, res) => {
         }
 
         const problemObj = dsaProblem.toObject ? dsaProblem.toObject() : { ...dsaProblem };
-        problemObj.hasVideo = Boolean(problemObj.video && problemObj.video.videoId);
+        const hasAttachedVideo = Boolean(problemObj.video && problemObj.video.videoId);
+        problemObj.hasVideo = hasAttachedVideo;
+
+        // Check if user has purchased access to this video solution
+        const userId = req.user?._id;
+        const accessStatus = await checkUserVideoAccess(userId, id);
+
+        if (accessStatus.hasAccess || req.user?.role === 'admin') {
+            problemObj.hasAccess = true;
+            problemObj.accessType = accessStatus.accessType;
+        } else {
+            problemObj.hasAccess = false;
+            problemObj.isLocked = hasAttachedVideo;
+            // STRIP videoId and raw URL from response for unpaid users
+            problemObj.video = null;
+            problemObj.videoPreview = {
+                hasVideo: hasAttachedVideo,
+                channel: dsaProblem.video?.channel || "takeUforward",
+                price: dsaProblem.videoPrice || pricing.PER_VIDEO_PRICE,
+                allAccessPrice: pricing.ALL_ACCESS_PRICE,
+            };
+        }
 
         return res.status(200).json(problemObj);
     } catch (error) {

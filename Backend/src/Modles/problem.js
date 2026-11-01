@@ -80,6 +80,10 @@ const schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    videoPrice: {
+      type: Number,
+      default: 49,
+    },
     video: {
       provider: {
         type: String,

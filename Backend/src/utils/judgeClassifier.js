@@ -137,14 +137,20 @@ function classifySingleCase(rawCase, expectedOutput = "", isHidden = false, lang
     };
   }
 
-  // 2. COMPILE_ERROR
-  if (statusId === JUDGE0_STATUS.COMPILATION_ERROR || rawCompileOutput.trim().length > 0) {
-    const { line, cleanMessage } = extractErrorLineAndMessage(rawCompileOutput, language, lineOffset);
-    const formattedDiagnostics = formatLeetCodeDiagnostics(rawCompileOutput, lineOffset);
+  // 2. COMPILE_ERROR (Compiler output or Python/Node SyntaxError)
+  const isSyntaxOrCompileError =
+    statusId === JUDGE0_STATUS.COMPILATION_ERROR ||
+    (rawCompileOutput && rawCompileOutput.trim().length > 0) ||
+    (rawStderr && (/SyntaxError:/i.test(rawStderr) || /IndentationError:/i.test(rawStderr) || /error:\s+expected/i.test(rawStderr)));
+
+  if (isSyntaxOrCompileError) {
+    const errorSource = (rawCompileOutput && rawCompileOutput.trim().length > 0) ? rawCompileOutput : rawStderr;
+    const { line, cleanMessage } = extractErrorLineAndMessage(errorSource, language, lineOffset);
+    const formattedDiagnostics = formatLeetCodeDiagnostics(errorSource, lineOffset);
     return {
       verdict: VERDICTS.COMPILE_ERROR,
       message: formattedDiagnostics || cleanMessage || "Compilation Error: Please check your syntax.",
-      errorDetails: formattedDiagnostics || rawCompileOutput,
+      errorDetails: formattedDiagnostics || errorSource,
       line,
       runtimeMs,
       memoryKb,
@@ -341,11 +347,16 @@ function classifyResult(rawResults = [], testCases = [], options = {}) {
   // A test case failed: report the first failure
   const failure = firstFailingResult || processedCases[0];
 
+  const cleanMessage =
+    failure.verdict === VERDICTS.COMPILE_ERROR || failure.verdict === VERDICTS.INTERNAL_ERROR
+      ? failure.message
+      : isHidden
+      ? `Failed on testcase ${failure.index + 1} of ${testCases.length}: ${failure.message}`
+      : failure.message;
+
   return {
     verdict: failure.verdict,
-    message: isHidden
-      ? `Failed on testcase ${failure.index + 1} of ${testCases.length}: ${failure.message}`
-      : failure.message,
+    message: cleanMessage,
     errorDetails: failure.errorDetails,
     line: failure.line,
     failedTestIndex: failure.index,

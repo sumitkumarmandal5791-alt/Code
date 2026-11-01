@@ -697,13 +697,31 @@ export function ProblemEditor() {
                                                     Step-by-step algorithmic explanation and code walkthrough
                                                 </p>
                                             </div>
-                                            {problem?.video?.videoId && (
-                                                <span className="text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">
-                                                    Official
+                                            {problem?.hasAccess ? (
+                                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                                                    ✓ Purchased
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] font-bold text-amber-500 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                                                    Premium
                                                 </span>
                                             )}
                                         </div>
-                                        <VideoSolution video={problem?.video} />
+                                        <VideoSolution
+                                            problemId={problemId}
+                                            video={problem?.video}
+                                            hasAccess={problem?.hasAccess}
+                                            isLocked={problem?.isLocked}
+                                            videoPreview={problem?.videoPreview}
+                                            onUnlocked={(unlockedVideo) => {
+                                                setProblem((prev) => ({
+                                                    ...prev,
+                                                    hasAccess: true,
+                                                    isLocked: false,
+                                                    video: unlockedVideo,
+                                                }));
+                                            }}
+                                        />
                                     </div>
                                 )}
 
@@ -1050,106 +1068,120 @@ export function ProblemEditor() {
             </main>
 
             {/* Inspect Past Submission Code Modal */}
-            {inspectingSubmission && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in"
-                    onClick={() => setInspectingSubmission(null)}
-                >
+            {inspectingSubmission && (() => {
+                const rawStatus = inspectingSubmission.verdict || inspectingSubmission.status || "Unknown";
+                const isAccepted = rawStatus.toLowerCase().includes("accept");
+                const hasRealError = !isAccepted && inspectingSubmission.errorMessage && !inspectingSubmission.errorMessage.toLowerCase().includes("passed");
+
+                return (
                     <div
-                        className="w-full max-w-3xl bg-white dark:bg-[#151515] rounded-3xl border border-gray-200 dark:border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
-                        onClick={(e) => e.stopPropagation()}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
+                        onClick={() => setInspectingSubmission(null)}
                     >
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02]">
-                            <div>
-                                <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                    <span>Submission Code</span>
-                                    <Badge
-                                        variant={
-                                            (inspectingSubmission.verdict || inspectingSubmission.status) === VERDICTS.ACCEPTED
-                                                ? "easy"
-                                                : "hard"
-                                        }
-                                    >
-                                        {inspectingSubmission.verdict || inspectingSubmission.status}
-                                    </Badge>
-                                </h3>
-                                <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-2">
-                                    <span>Submitted {new Date(inspectingSubmission.createdAt).toLocaleString()} in <strong className="capitalize text-gray-700 dark:text-gray-300">{inspectingSubmission.language}</strong></span>
-                                    {inspectingSubmission.runtime !== undefined && (
-                                        <span>• {Math.round(inspectingSubmission.runtime * 1000)}ms</span>
-                                    )}
-                                    {inspectingSubmission.memory !== undefined && inspectingSubmission.memory > 0 && (
-                                        <span>• {((inspectingSubmission.memory || 0) / 1024).toFixed(2)} MB</span>
-                                    )}
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setInspectingSubmission(null)}
-                                className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl cursor-pointer transition-colors"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        {/* Only show error message banner if submission actually failed */}
-                        {(inspectingSubmission.verdict || inspectingSubmission.status) !== VERDICTS.ACCEPTED &&
-                            inspectingSubmission.errorMessage && (
-                                <div className="px-6 py-3 bg-rose-500/[0.08] border-b border-rose-500/20 text-rose-500 font-mono text-xs whitespace-pre-wrap max-h-36 overflow-y-auto">
-                                    {inspectingSubmission.errorMessage}
+                        <div
+                            className="w-full max-w-3xl bg-[#181818] rounded-2xl border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/[0.02]">
+                                <div>
+                                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                        <span>Submission Code</span>
+                                        <Badge variant={isAccepted ? "easy" : "hard"}>
+                                            {isAccepted ? "Accepted" : rawStatus}
+                                        </Badge>
+                                    </h3>
+                                    <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-2">
+                                        <span>Submitted {new Date(inspectingSubmission.createdAt).toLocaleString()} in <strong className="capitalize text-gray-200">{inspectingSubmission.language}</strong></span>
+                                        {inspectingSubmission.runtime !== undefined && (
+                                            <span>• {Math.round(inspectingSubmission.runtime * 1000)}ms</span>
+                                        )}
+                                        {inspectingSubmission.memory !== undefined && inspectingSubmission.memory > 0 && (
+                                            <span>• {((inspectingSubmission.memory || 0) / 1024).toFixed(2)} MB</span>
+                                        )}
+                                    </p>
                                 </div>
-                        )}
+                                <button
+                                    onClick={() => setInspectingSubmission(null)}
+                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl cursor-pointer transition-colors"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
 
-                        {/* Code Editor Area with explicit height & automatic layout */}
-                        <div className="w-full h-[420px] bg-white dark:bg-[#121212] relative overflow-hidden">
-                            <Editor
-                                height="420px"
-                                language={inspectingSubmission.language}
-                                value={inspectingSubmission.code}
-                                theme={isDark ? "vs-dark" : "light"}
-                                options={{
-                                    readOnly: true,
-                                    fontSize: 13,
-                                    minimap: { enabled: false },
-                                    scrollBeyondLastLine: false,
-                                    automaticLayout: true,
-                                    fontFamily: "'Fira Code', 'Cascadia Code', monospace",
-                                    lineNumbers: "on",
-                                    renderLineHighlight: "all",
-                                    padding: { top: 12, bottom: 12 },
-                                    folding: true,
-                                    domReadOnly: true,
-                                }}
-                            />
-                        </div>
+                            {/* Only show error message banner if submission actually failed (never for Accepted) */}
+                            {hasRealError && (
+                                <div className="px-6 py-3.5 bg-[#242424] border-b border-red-500/20 text-[#f87171] font-mono text-xs whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                    <div className="font-bold text-xs uppercase tracking-wider mb-1 text-[#f87171]">
+                                        {rawStatus.toLowerCase().includes("compile") ? "Compile Error" : rawStatus.toLowerCase().includes("time") ? "Time Limit Exceeded" : "Runtime Error"}
+                                    </div>
+                                    <pre className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-[#f87171]">
+                                        {inspectingSubmission.errorMessage}
+                                    </pre>
+                                </div>
+                            )}
 
-                        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02]">
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => handleCopyCode(inspectingSubmission.code)}
-                                className="gap-1.5"
-                            >
-                                <Copy size={13} />
-                                <span>Copy Code</span>
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="primary"
-                                onClick={() =>
-                                    handleLoadIntoEditor(
-                                        inspectingSubmission.code,
-                                        inspectingSubmission.language
-                                    )
-                                }
-                                className="gap-1.5"
-                            >
-                                <ArrowDownToLine size={13} />
-                                <span>Load into Editor</span>
-                            </Button>
+                            {/* Code Editor Area with explicit height & reliable layout */}
+                            <div className="w-full h-[420px] min-h-[420px] bg-[#1e1e1e] relative overflow-hidden">
+                                <Editor
+                                    height="420px"
+                                    language={inspectingSubmission.language || "cpp"}
+                                    value={inspectingSubmission.code || ""}
+                                    theme="vs-dark"
+                                    loading={
+                                        <div className="w-full h-[420px] bg-[#1e1e1e] p-4 text-xs font-mono text-gray-300 overflow-auto whitespace-pre">
+                                            {inspectingSubmission.code}
+                                        </div>
+                                    }
+                                    onMount={(editor) => {
+                                        editor.layout();
+                                        setTimeout(() => editor.layout(), 50);
+                                        setTimeout(() => editor.layout(), 250);
+                                    }}
+                                    options={{
+                                        readOnly: true,
+                                        fontSize: 13,
+                                        minimap: { enabled: false },
+                                        scrollBeyondLastLine: false,
+                                        automaticLayout: true,
+                                        fontFamily: "'Fira Code', 'Cascadia Code', monospace",
+                                        lineNumbers: "on",
+                                        renderLineHighlight: "all",
+                                        padding: { top: 12, bottom: 12 },
+                                        folding: true,
+                                        domReadOnly: true,
+                                    }}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 p-4 border-t border-white/10 bg-white/[0.02]">
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => handleCopyCode(inspectingSubmission.code)}
+                                    className="gap-1.5"
+                                >
+                                    <Copy size={13} />
+                                    <span>Copy Code</span>
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="primary"
+                                    onClick={() =>
+                                        handleLoadIntoEditor(
+                                            inspectingSubmission.code,
+                                            inspectingSubmission.language
+                                        )
+                                    }
+                                    className="gap-1.5"
+                                >
+                                    <ArrowDownToLine size={13} />
+                                    <span>Load into Editor</span>
+                                </Button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* Keyboard Shortcuts Dialog */}
             {showShortcutHelp && (

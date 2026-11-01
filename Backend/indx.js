@@ -86,7 +86,13 @@ app.use(cors({
 
 
 
-app.use(express.json());
+app.use(
+    express.json({
+        verify: (req, res, buf) => {
+            req.rawBody = buf;
+        },
+    })
+);
 app.use(cookieParser());
 
 
@@ -96,6 +102,11 @@ app.use("/users", submitCodeRouter)
 app.use("/ai", AI)
 app.use("/video", videoRouter)
 app.use("/chat", chatRouter)
+
+// Razorpay Payments & Access Control routes
+const paymentRouter = require("./src/Routes/paymentRoute");
+app.use("/payment", paymentRouter);
+app.use("/api/payment", paymentRouter);
 
 // Activity & Heatmap routes
 const activityRouter = require("./src/Routes/activityRoute");
